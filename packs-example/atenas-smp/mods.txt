@@ -1,0 +1,76 @@
+# ═══════════════════════════════════════════════════════════════
+#  ATENAS SMP · Supervivencia con propósito · Forge 1.20.1
+#  Un mod por línea (slug de Modrinth). Para fijar versión: slug@version
+#  Las dependencias obligatorias se añaden solas.
+#  Para actualizar:  npm run pack -- RUTA/atenas-smp --note "lo que cambió"
+# ═══════════════════════════════════════════════════════════════
+
+# ── Rendimiento (cliente) ──────────────────────────────────────
+embeddium
+oculus
+modernfix
+ferrite-core
+entityculling
+immediatelyfast
+memoryleakfix
+dynamic-fps
+
+# ── Calidad de vida ────────────────────────────────────────────
+jei
+jade
+appleskin
+mouse-tweaks
+xaeros-minimap
+xaeros-world-map
+inventory-profiles-next
+waystones
+sophisticated-backpacks
+sophisticated-storage
+curios
+lootr
+
+# ── Propósito: misiones, equipos y territorio ──────────────────
+odyssey-quests          # Heracles: árbol de misiones (los FTB no están en Modrinth)
+open-parties-and-claims # claims y equipos (reemplaza FTB Chunks/Teams)
+
+# ── Progresión: tecnología y cocina ────────────────────────────
+create
+farmers-delight
+comforts
+
+# ── Construcción ───────────────────────────────────────────────
+macaws-windows
+macaws-doors
+macaws-bridges
+macaws-roofs
+macaws-trapdoors
+macaws-fences-and-walls
+macaws-lights-and-lamps
+macaws-paths-and-pavings
+macaws-furniture
+chipped
+supplementaries
+handcrafted
+construction-wand
+dramatic-doors
+every-compat
+
+# ── Mundo, exploración y jefes ─────────────────────────────────
+terralith
+yungs-api
+yungs-better-dungeons
+yungs-better-mineshafts
+yungs-better-strongholds
+yungs-better-desert-temples
+yungs-better-jungle-temples
+yungs-better-witch-huts
+yungs-better-ocean-monuments
+mowzies-mobs
+alexs-caves
+
+# ── Jefes y el gran desafío ────────────────────────────────────
+l_enders-cataclysm      # jefes y mazmorras difíciles; su equipo exige farmear
+# crackers-wither-storm-mod  # ACTIVAR MÁS ADELANTE (quita el #) para lanzar el Wither Storm como evento
+
+# ── Animaciones ligeras (solo cliente, casi sin costo de FPS) ──
+not-enough-animations

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0726"><title>Atenas SMP</title>
+<link rel="icon" href="icon.png">
+<style>
+:root{--bg:#090812;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.1);--text:#f1eefc;--muted:#a29fbd;--a:139,92,246;--b:236,72,153;--ok:#34d399;--bad:#fb7185}
+@media(prefers-color-scheme:light){:root{--bg:#f4f2ff;--card:#fff;--line:rgba(30,20,80,.12);--text:#1a1533;--muted:#645f85}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100svh;background:radial-gradient(900px 500px at 80% -10%,rgba(var(--a),.35),transparent 60%),radial-gradient(700px 400px at -10% 110%,rgba(var(--b),.22),transparent 60%),var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:max(20px,env(safe-area-inset-top)) 18px max(28px,env(safe-area-inset-bottom))}
+main{max-width:480px;margin:0 auto;display:grid;gap:14px}
+header{text-align:center;padding:18px 0 4px}
+header img{width:84px;height:84px;border-radius:22px;box-shadow:0 12px 40px rgba(var(--a),.55);animation:fl 5s ease-in-out infinite}
+h1{font:700 30px/1.1 Georgia,"Times New Roman",serif;letter-spacing:.04em;margin:14px 0 4px}
+p{margin:0;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px;backdrop-filter:blur(12px)}
+.st{display:flex;align-items:center;gap:10px;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}.on .dot{background:var(--ok);box-shadow:0 0 10px var(--ok)}.off .dot{background:var(--bad)}
+.ip{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:14px 0;padding:12px 14px;border-radius:14px;background:rgba(0,0,0,.25);font:600 17px ui-monospace,Consolas,monospace;color:#fff}
+.btn{display:flex;align-items:center;justify-content:center;min-height:52px;width:100%;border:0;border-radius:16px;font:700 16px system-ui;color:#fff;text-decoration:none;cursor:pointer;background:linear-gradient(110deg,rgb(var(--a)),rgb(var(--b)));box-shadow:0 10px 30px -8px rgba(var(--a),.7);transition:transform .15s}
+.btn:active{transform:scale(.97)}.btn.g{background:var(--card);color:var(--text);border:1px solid var(--line);box-shadow:none}
+.row{display:grid;gap:10px}
+details{border-top:1px solid var(--line);padding:12px 0}details:first-of-type{border:0}
+summary{font-weight:600;cursor:pointer}details p,details li{margin-top:8px;font-size:14px}ol{padding-left:20px;color:var(--muted);margin:0}
+.meta{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+@keyframes fl{50%{transform:translateY(-5px)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body><main>
+<header><img src="icon.png" alt="Atenas" width="84" height="84"><h1 id="name">Atenas SMP</h1><p>Supervivencia con propósito</p></header>
+<section class="card" id="card">
+  <div class="st"><i class="dot"></i><span id="state">Consultando servidor…</span></div>
+  <div class="ip"><span id="ip"></span><span id="pl" class="meta"></span></div>
+  <div class="row">
+    <button class="btn" id="copy">Copiar IP</button>
+    <a class="btn g" id="bed" hidden>Abrir en Minecraft (Bedrock)</a>
+    <a class="btn g" id="dl">Descargar launcher para PC</a>
+  </div>
+</section>
+<section class="card">
+  <details open><summary>Cómo entrar desde PC</summary><ol><li>Descarga e instala el launcher (Windows).</li><li>Elige tu nombre o inicia con Microsoft.</li><li>Pulsa <b>Instalar y jugar</b>: entra directo al servidor.</li></ol></details>
+  <details><summary>¿Y desde el celular?</summary><p>El servidor usa mods de Java Edition, así que Minecraft normal de celular (Bedrock) no puede entrar. En Android se puede con PojavLauncher, pero es manual y exige un teléfono potente. Aquí tienes la IP y el estado para unirte desde PC.</p></details>
+</section>
+<p class="meta"><span id="upd"></span><span>Datos: mcsrvstat.us</span></p>
+</main>
+<script>
+const CFG={name:'Atenas SMP',ip:'atenasmc.live',bedrockPort:'',repo:'kaspercito/atenas-launcher'};
+const $=id=>document.getElementById(id);
+$('name').textContent=CFG.name;$('ip').textContent=CFG.ip;
+$('dl').href=`https://github.com/${CFG.repo}/releases/latest`;
+if(CFG.bedrockPort){const b=$('bed');b.hidden=false;b.href=`minecraft://?addExternalServer=${encodeURIComponent(CFG.name)}|${CFG.ip}:${CFG.bedrockPort}`}
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText(CFG.ip);$('copy').textContent='¡IP copiada!'}catch{$('copy').textContent=CFG.ip}setTimeout(()=>$('copy').textContent='Copiar IP',1800)};
+async function load(){
+  try{const r=await fetch(`https://api.mcsrvstat.us/3/${CFG.ip}`);const d=await r.json();const on=!!d.online;
+    $('card').className='card '+(on?'on':'off');$('state').textContent=on?'Servidor en línea':'Servidor apagado o sin respuesta';
+    $('pl').textContent=on?`${d.players?.online??0}/${d.players?.max??'?'} jugadores`:'';
+    $('upd').textContent='Actualizado '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+  }catch{$('state').textContent='No se pudo consultar el estado'}
+}
+load();setInterval(load,60000);
+</script></body></html>

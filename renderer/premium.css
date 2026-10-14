@@ -1,0 +1,58 @@
+/* Atenas · capa visual v1.0 (después de styles.css). Sin animaciones que se repitan al re-renderizar. */
+.bg .aurora{position:absolute;inset:-35%;background:conic-gradient(from 0deg at 62% 38%,rgba(var(--acc),.2),transparent 24%,rgba(var(--acc-3),.14) 50%,transparent 72%,rgba(34,211,238,.1) 88%,rgba(var(--acc),.2));filter:blur(80px);animation:aur 70s linear infinite}
+.bg .gridfx{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(ellipse 80% 70% at 55% 30%,#000 15%,transparent 75%);mask-image:radial-gradient(ellipse 80% 70% at 55% 30%,#000 15%,transparent 75%)}
+.blob{translate:var(--px,0) var(--py,0);transition:translate .8s var(--ease)}
+.b2{translate:calc(var(--px,0px)*-1.5) calc(var(--py,0px)*-1.5)}
+body.no-fx .aurora{animation:none}
+@keyframes aur{to{transform:rotate(360deg)}}
+
+/* cristal */
+.stat,.card,.mod-card,.server-card,.choice,.chip,.btn.ghost,.pack-tab{backdrop-filter:blur(14px) saturate(140%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 28px -16px rgba(0,0,0,.75)}
+.stat,.mod-card,.server-card,.choice{position:relative}
+.btn,.chip,.pack-tab{position:relative;overflow:hidden;transition:transform .2s var(--ease),box-shadow .25s,background-color .25s,border-color .25s}
+.stat:hover,.card:hover,.mod-card:hover,.server-card:hover,.choice:hover,.chip:hover{background-image:radial-gradient(240px circle at var(--mx,50%) var(--my,50%),rgba(var(--acc-hi),.16),transparent 70%)}
+.stat::before{content:"";position:absolute;left:16px;top:0;width:34px;height:2px;border-radius:2px;background:var(--grad);transition:width .45s var(--ease)}
+.stat:hover::before{width:calc(100% - 32px)}
+.stat b,.sc-metrics b{font-variant-numeric:tabular-nums}
+
+/* un solo fundido suave al cambiar de sección (nada se repite al buscar o actualizar) */
+.view:not([hidden]){animation:viewIn .35s var(--ease) both}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}}
+
+/* marca */
+.hero h2{filter:drop-shadow(0 4px 24px rgba(var(--acc),.5))}
+.logo img{filter:drop-shadow(0 0 14px rgba(245,197,66,.45))}
+.gate-card img{filter:drop-shadow(0 0 22px rgba(245,197,66,.45))}
+.nav-btn svg{transition:transform .25s var(--ease)}
+.nav-btn:hover svg{transform:scale(1.12)}
+.nav-btn[aria-current="true"]{box-shadow:inset 0 0 0 1px rgba(var(--acc-hi),.35),0 8px 26px -12px rgba(var(--acc),.7)}
+.nav-btn .kbd{margin-left:auto;opacity:.55}
+.kbd{display:inline-block;padding:1px 7px;border-radius:6px;font-size:10px;font-style:normal;color:var(--muted);border:1px solid var(--line)}
+
+/* botón Jugar */
+.btn.play{background:linear-gradient(110deg,rgb(var(--acc)),rgb(var(--acc-2)),rgb(var(--acc-3)),rgb(var(--acc)));background-size:260% 100%;animation:flow 9s linear infinite}
+.btn.play:disabled,.btn.play.small{animation:none}
+.btn.play:hover:not(:disabled){transform:translateY(-2px)}
+@keyframes flow{to{background-position:260% 0}}
+.rip{position:absolute;border-radius:50%;pointer-events:none;background:rgba(255,255,255,.3);transform:scale(0);animation:rip .6s ease-out forwards}
+@keyframes rip{to{transform:scale(1);opacity:0}}
+
+.server-card{border-color:rgba(var(--acc-hi),.25)}
+.sc-state{animation:blink 2.4s ease-in-out infinite}
+@keyframes blink{50%{opacity:.5}}
+.bar i,.sc-bar i{box-shadow:0 0 14px rgba(var(--acc),.55)}
+::-webkit-scrollbar{width:10px}::-webkit-scrollbar-thumb{background:rgba(var(--acc-hi),.25);border-radius:10px;border:2px solid transparent;background-clip:padding-box}::-webkit-scrollbar-thumb:hover{background-color:rgba(var(--acc-hi),.5)}
+
+/* barra superior: buscador de acciones */
+.kpill{-webkit-app-region:no-drag;position:absolute;left:50%;top:6px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;height:26px;padding:0 10px 0 12px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--muted);font-size:12px}
+.kpill:hover{color:var(--text);border-color:var(--line-hi)}
+
+/* paleta de acciones (Ctrl+K) */
+.pal{position:fixed;inset:0;z-index:60;display:grid;justify-items:center;align-content:start;padding-top:14vh;background:rgba(5,4,12,.6);backdrop-filter:blur(6px);animation:viewIn .2s var(--ease) both}
+.pal-box{width:min(520px,92vw);border-radius:18px;background:rgba(18,15,34,.92);border:1px solid rgba(var(--acc-hi),.35);box-shadow:0 30px 90px -20px rgba(var(--acc),.6);overflow:hidden}
+.pal input{width:100%;height:52px;padding:0 20px;background:none;border:0;border-bottom:1px solid var(--line);color:var(--text);font-size:15px;outline:0;user-select:text}
+.pal ul{list-style:none;margin:0;padding:8px;max-height:340px;overflow:auto}
+.pal li{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;color:#d6d1ef}
+.pal li small{margin-left:auto;color:var(--muted)}
+.pal li[aria-selected="true"]{background:var(--grad-soft);color:#fff;box-shadow:inset 0 0 0 1px rgba(var(--acc-hi),.3)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01s!important;animation-iteration-count:1!important}}

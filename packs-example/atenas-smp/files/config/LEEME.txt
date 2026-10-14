@@ -1,0 +1,3 @@
+Aquí van las configuraciones del pack (se copian a la carpeta del juego de tus amigos).
+Los mods NO se ponen a mano: se descargan solos con `npm run pack` desde mods.txt.
+Borra este archivo cuando pongas tus propios configs.

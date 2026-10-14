@@ -1,0 +1,12 @@
+{
+  "id": "atenas-smp",
+  "name": "Atenas SMP",
+  "baseUrl": "https://raw.githubusercontent.com/kaspercito/atenas-packs/main/atenas-smp",
+  "minecraft": "1.20.1",
+  "loader": { "type": "forge", "version": "47.3.0" },
+  "ram": { "min": "3G", "max": "6G" },
+  "server": "atenasmc.live",
+  "managed": ["mods"],
+  "once": ["options.txt", "config/xaerominimap.txt", "config/xaeroworldmap.txt"],
+  "sources": {}
+}

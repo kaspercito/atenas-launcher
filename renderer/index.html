@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atenas Launcher</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="premium.css">
+</head>
+<body>
+  <!-- Fondo animado -->
+  <div class="bg" aria-hidden="true">
+    <i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i>
+    <canvas id="fx"></canvas>
+    <div class="grain"></div>
+  </div>
+
+  <!-- Barra de título propia -->
+  <header class="titlebar">
+    <div class="tb-title"><span class="dot"></span><span id="tbTitle">Atenas Launcher</span></div>
+    <div class="tb-controls">
+      <button class="tb-btn" id="winMin" aria-label="Minimizar"><svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg></button>
+      <button class="tb-btn" id="winMax" aria-label="Maximizar"><svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/></svg></button>
+      <button class="tb-btn close" id="winClose" aria-label="Cerrar"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
+    </div>
+  </header>
+
+  <div class="app" id="app">
+    <!-- Barra lateral -->
+    <aside class="rail">
+      <div class="logo"><img src="../assets/icon.png" alt="Atenas" width="40" height="40"></div>
+      <nav class="nav" aria-label="Secciones">
+        <button class="nav-btn" data-view="home" aria-current="true" title="Inicio">
+          <svg viewBox="0 0 24 24"><path d="M3 11l9-7.5L21 11M5.5 9.5V20h13V9.5"/></svg><span>Inicio</span>
+        </button>
+        <button class="nav-btn" data-view="mods" aria-current="false" title="Mods">
+          <svg viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.7v9.6L12 21.5l-8.5-4.7V7.2L12 2.5zM3.8 7.4L12 12l8.2-4.6M12 12v9.2"/></svg><span>Mods</span>
+        </button>
+        <button class="nav-btn" data-view="news" aria-current="false" title="Novedades">
+          <svg viewBox="0 0 24 24"><path d="M5 4.5h11a2 2 0 0 1 2 2V19.5H7a2 2 0 0 1-2-2V4.5zM18 8h2.5v9.5a2 2 0 0 1-2 2M8.5 8.5h6M8.5 12h6M8.5 15.5h4"/></svg><span>Novedades</span>
+          <i class="nav-dot" id="newsDot" hidden></i>
+        </button>
+        <button class="nav-btn" data-view="settings" aria-current="false" title="Ajustes">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Ajustes</span>
+        </button>
+      </nav>
+
+      <button class="account" id="account" title="Tu cuenta">
+        <div class="avatar" id="avatar" aria-hidden="true">?</div>
+        <div class="who">
+          <strong id="accName">Sin sesión</strong>
+          <span id="accKind"></span>
+        </div>
+      </button>
+    </aside>
+
+    <main class="stage">
+      <!-- ───────── INICIO ───────── -->
+      <section class="view" id="view-home" data-view="home">
+        <div class="pack-tabs" id="packs" role="tablist" aria-label="Modpacks"></div>
+
+        <div class="home-scroll">
+          <div class="hero" id="hero" hidden>
+            <div class="hero-grid">
+              <div class="hero-main">
+                <p class="eyebrow" id="packMeta"></p>
+                <h2 id="packName"></h2>
+                <p class="desc" id="packDesc"></p>
+                <div class="status" id="packStatus" role="status"></div>
+
+                <div class="stats" id="stats">
+                  <div class="stat"><span class="stat-k">Minecraft</span><b id="stMc">—</b></div>
+                  <div class="stat"><span class="stat-k">Loader</span><b id="stLoader">—</b></div>
+                  <div class="stat"><span class="stat-k">Mods</span><b id="stMods">—</b></div>
+                  <div class="stat"><span class="stat-k">Jugado</span><b id="stPlay">—</b></div>
+                </div>
+
+                <div class="quick" id="quick">
+                  <button class="chip" id="qIp" hidden><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></svg>Copiar IP</button>
+                  <button class="chip" id="btnFolder"><svg viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18V6.5z"/></svg>Carpeta</button>
+                  <button class="chip" id="qShots"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><circle cx="12" cy="12.5" r="3.2"/><path d="M8.5 6l1.2-2h4.6l1.2 2"/></svg>Capturas</button>
+                  <button class="chip" id="qRepair"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.1-.5-.5-2.1 2.7-2.5z"/></svg>Reparar</button>
+                  <button class="chip" id="qDiscord" hidden><svg viewBox="0 0 24 24"><path d="M7 7.5c3-1.5 7-1.5 10 0 1.7 2.6 2.4 5.2 2.2 8-1.3 1-2.6 1.6-4 2l-.9-1.5M7 7.5c-1.7 2.6-2.4 5.2-2.2 8 1.3 1 2.6 1.6 4 2l.9-1.5"/><circle cx="9.5" cy="12.5" r="1"/><circle cx="14.5" cy="12.5" r="1"/></svg>Discord</button>
+                  <button class="chip" id="qWeb" hidden><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.3 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.3-3.5-8.5s1-6 3.5-8.5z"/></svg>Web</button>
+                </div>
+              </div>
+
+              <aside class="server-card" id="serverCard" hidden aria-label="Estado del servidor">
+                <div class="sc-head">
+                  <span class="sc-state" id="scState" data-state="loading"></span>
+                  <strong id="scTitle">Servidor</strong>
+                  <button class="icon-mini" id="scRefresh" title="Actualizar estado" aria-label="Actualizar estado del servidor">
+                    <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+                  </button>
+                </div>
+                <button class="sc-ip" id="scIp" title="Copiar IP"><span id="scIpText"></span>
+                  <svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></svg>
+                </button>
+                <p class="sc-motd" id="scMotd"></p>
+                <div class="sc-metrics">
+                  <div><b id="scPlayers">—</b><span>jugadores</span></div>
+                  <div><b id="scPing">—</b><span>ping</span></div>
+                </div>
+                <div class="sc-bar"><i id="scBar"></i></div>
+                <div class="sc-names" id="scNames"></div>
+              </aside>
+            </div>
+          </div>
+
+          <section class="empty" id="empty">
+            <div class="spinner" id="spinner"></div>
+            <div class="empty-ico" id="emptyIco" hidden>
+              <svg viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19L12 3.5zM12 10v4.5M12 17.5v.01"/></svg>
+            </div>
+            <h4 id="emptyTitle" hidden></h4>
+            <p id="emptyText">Cargando modpacks…</p>
+            <div class="row center" id="emptyActions" hidden>
+              <button class="btn play small" id="btnRetry"><span class="play-label">Reintentar</span></button>
+              <button class="btn ghost small" id="btnToSettings">Ajustes</button>
+            </div>
+          </section>
+
+          <section class="changes" id="changes" hidden aria-live="polite"></section>
+        </div>
+
+        <div class="dock" id="dock" hidden>
+          <div class="progress" id="progress" hidden>
+            <div class="progress-top">
+              <span id="progressText"></span>
+              <b id="progressPct"></b>
+            </div>
+            <div class="bar"><i id="barFill"></i></div>
+          </div>
+          <p class="note" id="note" hidden></p>
+          <div class="actions">
+            <div class="actions-left">
+              <button class="btn ghost" id="btnLog" aria-expanded="false">
+                <svg viewBox="0 0 24 24"><path d="M4 5.5h16M4 12h16M4 18.5h10"/></svg>
+                Registro
+              </button>
+            </div>
+            <div class="actions-right">
+              <button class="btn soft" id="btnUpdate" hidden>Solo actualizar</button>
+              <button class="btn play" id="btnPlay">
+                <span class="play-label" id="playLabel">Jugar</span>
+                <span class="play-sub" id="playSub"></span>
+                <i class="shine"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <pre class="log" id="log" hidden aria-label="Registro del juego"></pre>
+      </section>
+
+      <!-- ───────── MODS ───────── -->
+      <section class="view" id="view-mods" data-view="mods" hidden>
+        <div class="view-head">
+          <div>
+            <h3>Mods del modpack</h3>
+            <p class="muted" id="modsSub">—</p>
+          </div>
+          <label class="search">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+            <input id="modSearch" type="search" placeholder="Buscar mod…" spellcheck="false" autocomplete="off" aria-label="Buscar mod">
+          </label>
+        </div>
+        <div class="mods-grid" id="modsGrid"></div>
+        <p class="empty-line" id="modsEmpty" hidden>No hay mods que coincidan.</p>
+      </section>
+
+      <!-- ───────── NOVEDADES ───────── -->
+      <section class="view" id="view-news" data-view="news" hidden>
+        <div class="view-head">
+          <div>
+            <h3>Novedades</h3>
+            <p class="muted" id="newsSub">Lo último que cambió en el modpack.</p>
+          </div>
+        </div>
+        <div class="news" id="newsBody"></div>
+      </section>
+
+      <!-- ───────── AJUSTES ───────── -->
+      <section class="view" id="view-settings" data-view="settings" hidden>
+        <div class="view-head">
+          <div>
+            <h3>Ajustes</h3>
+            <p class="muted">Todo se guarda solo.</p>
+          </div>
+        </div>
+
+        <div class="cards">
+          <div class="card">
+            <div class="card-head">
+              <h4>Memoria RAM</h4>
+              <b class="pill" id="ramValue"></b>
+            </div>
+            <input type="range" id="ramRange" min="1024" step="512" aria-label="Memoria para Minecraft">
+            <small class="muted" id="ramHint"></small>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h4>Rendimiento</h4></div>
+            <label class="switch-row">
+              <span>
+                <strong>Argumentos de Java optimizados</strong>
+                <small class="muted">Recolector G1 afinado: menos tirones al explorar y construir.</small>
+              </span>
+              <input type="checkbox" id="optJvm" class="switch">
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Minimizar el launcher al jugar</strong>
+                <small class="muted">Libera recursos mientras Minecraft está abierto.</small>
+              </span>
+              <input type="checkbox" id="optMin" class="switch">
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Fondo animado</strong>
+                <small class="muted">Apágalo si tu PC va justa.</small>
+              </span>
+              <input type="checkbox" id="optFx" class="switch">
+            </label>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h4>Apariencia</h4></div>
+            <div class="themes" id="themes" role="radiogroup" aria-label="Tema de color">
+              <button class="theme" data-theme="violet" role="radio" aria-label="Violeta" title="Violeta"></button>
+              <button class="theme" data-theme="ocean" role="radio" aria-label="Océano" title="Océano"></button>
+              <button class="theme" data-theme="emerald" role="radio" aria-label="Esmeralda" title="Esmeralda"></button>
+              <button class="theme" data-theme="ember" role="radio" aria-label="Fuego" title="Fuego"></button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h4>Avisos y mantenimiento</h4></div>
+            <label class="switch-row">
+              <span>
+                <strong>Avisarme de actualizaciones</strong>
+                <small class="muted">Notificación de Windows cuando haya mods nuevos.</small>
+              </span>
+              <input type="checkbox" id="optNotify" class="switch">
+            </label>
+            <div class="row">
+              <button type="button" class="btn ghost small" id="btnRepair2">Reparar instalación</button>
+              <button type="button" class="btn ghost small" id="btnFolder2">Abrir carpeta del juego</button>
+            </div>
+            <small class="muted">Reparar vuelve a verificar todos los mods y descarga los que estén dañados o falten.</small>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h4>Cuenta</h4></div>
+            <div class="row">
+              <button type="button" class="btn ghost small" id="btnSwitch">Cambiar de cuenta</button>
+            </div>
+          </div>
+
+          <p class="version" id="appVersion"></p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Inicio de sesión -->
+  <div class="gate" id="gate" hidden>
+    <div class="gate-card">
+      <img src="../assets/icon.png" alt="" width="84" height="84">
+      <h2>Bienvenido a Atenas</h2>
+      <p class="gate-lead">Elige cómo quieres jugar.</p>
+
+      <button class="choice" id="btnMicrosoft">
+        <span class="choice-title">Cuenta de Microsoft</span>
+        <span class="choice-desc">Cuenta oficial de Minecraft (premium). Entras con tu skin y a cualquier servidor.</span>
+      </button>
+
+      <form class="choice offline" id="offlineForm" autocomplete="off">
+        <span class="choice-title">Sin cuenta oficial</span>
+        <span class="choice-desc">Solo un nombre de jugador (no premium). Funciona en servidores que lo permitan.</span>
+        <div class="offline-row">
+          <input id="offlineName" type="text" maxlength="16" placeholder="Tu nombre de jugador" spellcheck="false" aria-label="Nombre de jugador">
+          <button class="btn play small" type="submit"><span class="play-label">Entrar</span></button>
+        </div>
+      </form>
+
+      <p class="gate-error" id="gateError" role="alert" hidden></p>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <script src="app.js"></script>
+  <script src="premium.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "launcherName": "Atenas Launcher",
+  "packsIndexUrl": "https://raw.githubusercontent.com/kaspercito/atenas-packs/main/packs.json",
+  "checkIntervalMinutes": 5,
+  "links": {
+    "discord": "",
+    "web": ""
+  }
+}
