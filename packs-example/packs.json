@@ -1,0 +1,10 @@
+{
+  "packs": [
+    {
+      "id": "atenas-smp",
+      "name": "Atenas SMP",
+      "description": "Supervivencia con mods de exploración y calidad de vida.",
+      "manifestUrl": "https://raw.githubusercontent.com/kaspercito/atenas-packs/main/atenas-smp/manifest.json"
+    }
+  ]
+}

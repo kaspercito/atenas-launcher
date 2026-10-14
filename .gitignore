@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.log
+admin.config.json

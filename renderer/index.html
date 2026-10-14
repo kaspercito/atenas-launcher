@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https://cdn.modrinth.com https://media.forgecdn.net data:; style-src 'self'; script-src 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atenas Admin</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#g)"/><path d="M24 9 11 39h6l2.4-6h9.2l2.4 6h6L24 9Zm0 11 3.2 8h-6.4L24 20Z" fill="#fff"/></svg>
+      <div><b>Atenas Admin</b><small>Panel del dueño</small></div>
+    </div>
+
+    <label class="lbl">Modpack</label>
+    <select id="packSel"></select>
+    <button class="ghost sm" id="repoBtn">📁 Cambiar carpeta</button>
+
+    <nav class="nav" id="nav">
+      <button data-view="mods" class="on">🧩 Mods <span class="count" id="cMods">0</span></button>
+      <button data-view="add">🔎 Añadir mods</button>
+      <button data-view="files">📦 Mis .jar <span class="count" id="cManual">0</span></button>
+      <button data-view="publish">🚀 Publicar</button>
+    </nav>
+
+    <div class="meta" id="meta"></div>
+  </aside>
+
+  <main class="main">
+    <section id="v-mods" class="view on">
+      <header class="top">
+        <div><h1>Mods del modpack</h1><p class="sub" id="modsSub"></p></div>
+        <input id="filter" type="search" placeholder="Filtrar mods…" autocomplete="off">
+      </header>
+      <div id="modList" class="list"></div>
+      <div id="depBox"></div>
+    </section>
+
+    <section id="v-add" class="view">
+      <header class="top">
+        <div><h1>Añadir mods</h1><p class="sub">Solo salen mods que funcionan con la versión y el loader de tu pack. Si no está en Modrinth, prueba en CurseForge.</p></div>
+        <div class="seg" id="srcSeg"><button data-src="modrinth" class="on">Modrinth</button><button data-src="curseforge">CurseForge</button></div>
+      </header>
+      <div id="cfKeyBox" class="panel keybox" hidden>
+        <h3>Conecta CurseForge (una sola vez)</h3>
+        <p class="sub">CurseForge pide una API key gratuita: entra en <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer">console.curseforge.com</a>, inicia sesión, ve a <b>API keys</b>, copia la tuya y pégala aquí. Se guarda cifrada en tu PC, nunca en GitHub.</p>
+        <form id="cfKeyForm" class="searchbar"><input id="cfKey" type="password" placeholder="Pega tu API key" autocomplete="off"><button class="primary" type="submit">Guardar</button></form>
+      </div>
+      <div id="cfChangeRow" hidden style="margin-bottom:8px"><button id="cfChangeBtn" class="ghost sm" type="button">🔑 Cambiar API key de CurseForge</button></div>
+      <form id="searchForm" class="searchbar">
+        <input id="q" type="search" placeholder="Busca un mod (ej. create, jei, sodium)…" autocomplete="off">
+        <button class="primary" type="submit">Buscar</button>
+      </form>
+      <div id="results" class="cards"></div>
+      <button id="moreBtn" class="ghost" hidden>Ver más</button>
+    </section>
+
+    <section id="v-files" class="view">
+      <header class="top">
+        <div><h1>Mis .jar</h1><p class="sub">Para mods que no están en Modrinth. Arrastra los archivos aquí; se suben a GitHub al publicar.</p></div>
+      </header>
+      <div id="drop" class="drop"><div><span class="big">⬇</span><b>Suelta aquí tus .jar</b><small>o</small><button class="ghost" id="pickBtn">Elegir archivos…</button></div></div>
+      <div id="manualList" class="list"></div>
+    </section>
+
+    <section id="v-publish" class="view">
+      <header class="top">
+        <div><h1>Publicar cambios</h1><p class="sub">Descarga los mods, comprueba dependencias, genera el manifest y lo sube a GitHub. Tus amigos reciben el aviso solos.</p></div>
+      </header>
+      <div class="pubgrid">
+        <div class="panel">
+          <h3>Resumen de cambios</h3>
+          <div id="changes"></div>
+          <label class="lbl">Nota de la actualización (la ven tus amigos)</label>
+          <textarea id="note" rows="3" placeholder="Ej: añadido Create, quitado Waystones"></textarea>
+          <label class="check"><input type="checkbox" id="doPush" checked> Subir a GitHub (git push)</label>
+          <div class="row">
+            <button class="ghost" id="previewBtn">👁 Vista previa</button>
+            <button class="primary big" id="publishBtn">🚀 Publicar</button>
+          </div>
+        </div>
+        <div class="panel logpanel">
+          <h3>Registro <button class="ghost sm" id="clearLog">Limpiar</button></h3>
+          <pre id="log" aria-live="polite"></pre>
+          <div id="problems"></div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="bar" id="bar" hidden>
+      <span id="barTxt"></span>
+      <span class="grow"></span>
+      <button class="ghost" id="discardBtn">Descartar cambios</button>
+      <button class="primary" id="goPublish">Ir a publicar →</button>
+    </footer>
+  </main>
+</div>
+
+<div id="modal" class="modal" hidden><div class="dialog" id="dialog"></div></div>
+<div id="toasts" class="toasts"></div>
+<script src="app.js"></script>
+</body>
+</html>

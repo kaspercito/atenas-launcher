@@ -1,0 +1,7 @@
+{
+  "name": "atenas-admin",
+  "productName": "Atenas Admin",
+  "version": "1.0.0",
+  "main": "main.js",
+  "private": true
+}

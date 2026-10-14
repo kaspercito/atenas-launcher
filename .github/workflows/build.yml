@@ -1,0 +1,25 @@
+name: Build instalador de Windows
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      # Crea el release ANTES de subir archivos: evita el error 422 already_exists
+      # (electron-builder sube el .exe y el .blockmap a la vez y ambos intentan crearlo).
+      - name: Crear release si no existe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+      - run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
