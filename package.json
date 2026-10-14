@@ -46,6 +46,7 @@
     },
     "publish": {
       "provider": "github",
+      "releaseType": "release",
       "owner": "kaspercito",
       "repo": "atenas-launcher"
     }
