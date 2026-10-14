@@ -1,381 +1,402 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, Notification, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const mf = require('./lib/modsfile');
-const modrinth = require('./lib/modrinth');
-const gitlib = require('./lib/git');
-const cf = require('./lib/curseforge');
-const { syncPack } = require('../tools/pack-sync');
+const { loadManifest, computeDiff, applyDiff, STATE_FILE } = require('./src/lib/sync');
+const { pingServer } = require('./src/lib/ping');
+const { javaMajorFor, ensureJava } = require('./src/lib/java');
+const { ensureLoader } = require('./src/lib/loaders');
+const { launchGame } = require('./src/lib/launch');
+const { Account } = require('./src/lib/auth');
+const { fetchJson } = require('./src/lib/net');
+
+const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'launcher.config.json'), 'utf8'));
 
 let win = null;
-let busy = false;
-const snapshots = new Map();   // packDir -> { txt, cf }: estado cuando lo abriste (para "Descartar")
-const infoCache = new Map();   // slug/id -> { title, icon, ... }
+let busy = false; // actualizando o jugando
+let lastNotifiedVersion = null;
 
-const settingsFile = () => path.join(app.getPath('userData'), 'admin-settings.json');
-const readJson = (f, fb) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return fb; } };
-const getSettings = () => readJson(settingsFile(), {});
-const saveSettings = (patch) => {
-  const s = { ...getSettings(), ...patch };
-  fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
-  fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
-  return s;
+// ───────────────────────── almacenamiento ─────────────────────────
+const dataDir = () => app.getPath('userData');
+const instancesDir = () => path.join(dataDir(), 'instances');
+const runtimeDir = () => path.join(dataDir(), 'runtime');
+const settingsFile = () => path.join(dataDir(), 'settings.json');
+const authFile = () => path.join(dataDir(), 'auth.json');
+const packsCacheFile = () => path.join(dataDir(), 'packs-cache.json');
+
+function readJson(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+function writeJson(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+const getSettings = () => ({
+  ramMb: 4096, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, fx: true, notify: true, theme: 'violet',
+  seenNews: {}, playtime: {}, lastPlayed: {},
+  ...readJson(settingsFile(), {}),
+});
+const setSettings = (patch) => { const s = { ...getSettings(), ...patch }; writeJson(settingsFile(), s); return s; };
+
+// El token de sesión se guarda cifrado con el almacén seguro del sistema (DPAPI en Windows)
+const authStore = {
+  load() {
+    const raw = readJson(authFile(), null);
+    if (!raw) return null;
+    try {
+      if (raw.kind === 'offline') return { kind: 'offline', name: raw.name, uuid: raw.uuid };
+      const token = raw.enc && safeStorage.isEncryptionAvailable()
+        ? safeStorage.decryptString(Buffer.from(raw.enc, 'base64'))
+        : raw.plain;
+      return { kind: 'microsoft', refreshToken: token, name: raw.name, uuid: raw.uuid };
+    } catch { return null; }
+  },
+  save({ kind, refreshToken, name, uuid }) {
+    const out = { kind, name, uuid };
+    if (refreshToken) {
+      if (safeStorage.isEncryptionAvailable()) out.enc = safeStorage.encryptString(refreshToken).toString('base64');
+      else out.plain = refreshToken;
+    }
+    writeJson(authFile(), out);
+  },
+  clear() { try { fs.unlinkSync(authFile()); } catch {} },
 };
+const account = new Account(authStore);
 
-// API key de CurseForge: cifrada con el almacén del sistema (DPAPI en Windows) cuando se puede
-function getCfKey() {
-  const s = getSettings();
+// ───────────────────────── packs ─────────────────────────
+function safePackId(id) {
+  if (typeof id !== 'string' || !/^[A-Za-z0-9._-]{1,64}$/.test(id) || id === '.' || id === '..') {
+    throw new Error('Id de pack inválido');
+  }
+  return id;
+}
+const instanceDir = (id) => path.join(instancesDir(), safePackId(id));
+const cachedManifestFile = (id) => path.join(instanceDir(id), '.atenas-manifest.json');
+
+async function getPacks() {
+  if (Array.isArray(config.packs) && config.packs.length) return { packs: config.packs, offline: false };
   try {
-    if (s.cfKeyEnc && safeStorage.isEncryptionAvailable()) return safeStorage.decryptString(Buffer.from(s.cfKeyEnc, 'base64'));
-  } catch { /* clave ilegible: se pedirá otra vez */ }
-  return s.cfKeyPlain || null;
+    const idx = await fetchJson(config.packsIndexUrl);
+    const packs = (idx.packs || []).filter((p) => p && p.id && p.manifestUrl);
+    writeJson(packsCacheFile(), { packs });
+    return { packs, offline: false };
+  } catch (err) {
+    const cache = readJson(packsCacheFile(), null);
+    if (cache) return { packs: cache.packs, offline: true };
+    throw new Error('No se pudo cargar la lista de modpacks. Revisa tu conexión.');
+  }
 }
-function setCfKey(key) {
-  if (safeStorage.isEncryptionAvailable()) saveSettings({ cfKeyEnc: safeStorage.encryptString(key).toString('base64'), cfKeyPlain: null });
-  else saveSettings({ cfKeyPlain: key, cfKeyEnc: null });
+
+async function findPack(id) {
+  const { packs } = await getPacks();
+  const pack = packs.find((p) => p.id === id);
+  if (!pack) throw new Error('Pack no encontrado: ' + id);
+  safePackId(pack.id);
+  return pack;
 }
-function cfHttp() {
-  const key = getCfKey();
-  if (!key) throw new Error('Falta tu API key de CurseForge (pestaña Añadir mods → CurseForge).');
-  const http = cf.makeHttp(key);
-  const orig = http.json;
-  // Si CurseForge rechaza la key guardada, se borra para poder pegar otra (antes quedaba atascada)
-  http.json = async (...a) => {
-    try { return await orig(...a); } catch (e) {
-      if ((e.authFailed === 401 || e.authFailed === 403) && !/bloque/i.test(e.message)) {
-        saveSettings({ cfKeyEnc: null, cfKeyPlain: null });
-        e.message += ' Borré la key guardada: ve a Añadir mods → CurseForge y pega una nueva.';
+
+const names = (list) => list.map((f) => (f.path.startsWith('mods/') ? path.posix.basename(f.path) : f.path));
+
+const prettyMod = (p) => path.posix.basename(p).replace(/\.jar$/i, '').replace(/[_]+/g, ' ');
+
+function summarize(pack, manifest, diff, offline) {
+  const mods = (manifest.files || [])
+    .filter((f) => /^mods\/[^/]+\.jar$/i.test(String(f.path).replace(/\\/g, '/')))
+    .map((f) => ({ name: prettyMod(f.path), size: f.size || 0 }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  let status = 'ready';
+  if (!diff.installed) status = 'not-installed';
+  else if (diff.hasChanges) status = 'update';
+  return {
+    packId: pack.id,
+    name: manifest.name || pack.name || pack.id,
+    description: pack.description || '',
+    status,
+    offline,
+    localVersion: diff.localVersion,
+    remoteVersion: manifest.packVersion,
+    changelog: manifest.changelog || '',
+    minecraft: manifest.minecraft,
+    loader: manifest.loader ? `${manifest.loader.type} ${manifest.loader.version || ''}`.trim() : 'vanilla',
+    server: manifest.server || null,
+    add: names(diff.add),
+    change: names(diff.change),
+    remove: names(diff.remove),
+    bytes: diff.bytes,
+    mods,
+    modCount: mods.length,
+  };
+}
+
+async function checkPack(packId) {
+  const pack = await findPack(packId);
+  const dir = instanceDir(pack.id);
+  let manifest;
+  let offline = false;
+  try {
+    manifest = await loadManifest(pack.manifestUrl);
+  } catch (err) {
+    manifest = readJson(cachedManifestFile(pack.id), null);
+    if (!manifest) {
+      const m = /^HTTP (\d+)/.exec(err.message || '');
+      if (m && m[1] === '404') {
+        const e = new Error('Este modpack todavía no está publicado: falta el archivo manifest.json en GitHub. Si eres el administrador, ejecuta "npm run pack" y luego "git push". Si no, avísale.');
+        e.code = 'NO_MANIFEST';
+        throw e;
       }
+      if (m) throw new Error(`GitHub respondió con error ${m[1]} al leer el modpack. Inténtalo en unos minutos.`);
+      const e = new Error('No se pudo conectar con GitHub. Revisa tu internet y pulsa Reintentar.');
+      e.code = 'NO_CONNECTION';
       throw e;
     }
-  };
-  return http;
+    offline = true;
+  }
+  const diff = offline
+    ? { add: [], change: [], remove: [], bytes: 0, hasChanges: false, installed: true, localVersion: manifest.packVersion }
+    : await computeDiff(manifest, dir);
+
+  // Cambió solo la versión/changelog pero no los archivos: registrar en silencio
+  if (!offline && diff.installed && !diff.hasChanges && diff.localVersion !== manifest.packVersion) {
+    await applyDiff(manifest, dir, diff);
+    writeJson(cachedManifestFile(pack.id), manifest);
+    diff.localVersion = manifest.packVersion;
+  }
+  return { summary: summarize(pack, manifest, diff, offline), manifest, diff, pack };
 }
 
-const send = (ch, p) => { if (win && !win.isDestroyed()) win.webContents.send(ch, p); };
+async function runUpdate(pack, manifest, diff) {
+  const dir = instanceDir(pack.id);
+  await applyDiff(manifest, dir, diff, {
+    onProgress: (p) => send('pack:progress', { packId: pack.id, ...p }),
+  });
+  writeJson(cachedManifestFile(pack.id), manifest);
+}
+
+// ───────────────────────── IPC ─────────────────────────
+function send(channel, payload) {
+  if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+}
+const gameLog = (line) => send('game:log', line);
+
 function handle(channel, fn) {
-  ipcMain.handle(channel, async (_e, ...a) => {
-    try { return { ok: true, data: await fn(...a) }; }
-    catch (err) { return { ok: false, message: err.message || String(err) }; }
+  ipcMain.handle(channel, async (_e, ...args) => {
+    try { return { ok: true, data: await fn(...args) }; }
+    catch (err) { return { ok: false, error: err.code || err.message || String(err), message: err.message }; }
   });
 }
 
-// ───────── packs ─────────
-const isPackDir = (d) => fs.existsSync(path.join(d, 'pack.json')) && fs.existsSync(path.join(d, 'mods.txt'));
+handle('app:init', async () => ({
+  launcherName: config.launcherName,
+  links: Object.fromEntries(Object.entries(config.links || {}).filter(([, v]) => /^https:\/\//.test(v || ''))),
+  version: app.getVersion(),
+  account: account.info,
+  settings: getSettings(),
+  totalRamMb: Math.round(require('os').totalmem() / 1048576),
+}));
 
-function listPacks(repoDir) {
-  if (!repoDir || !fs.existsSync(repoDir)) return [];
-  if (isPackDir(repoDir)) return [{ id: path.basename(repoDir), dir: repoDir }];
-  return fs.readdirSync(repoDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !d.name.startsWith('.') && isPackDir(path.join(repoDir, d.name)))
-    .map((d) => ({ id: d.name, dir: path.join(repoDir, d.name) }));
-}
+ipcMain.on('win:minimize', () => { if (win) win.minimize(); });
+ipcMain.on('win:maximize', () => { if (win) (win.isMaximized() ? win.unmaximize() : win.maximize()); });
+ipcMain.on('win:close', () => { if (win) win.close(); });
 
-function currentPackDir() {
-  const s = getSettings();
-  const pack = listPacks(s.repoDir).find((p) => p.id === s.packId);
-  if (!pack) throw new Error('Elige primero la carpeta de tus modpacks.');
-  return pack.dir;
-}
+handle('packs:list', async () => getPacks());
 
-function guessRepoDir() {
-  const cands = [
-    path.join(__dirname, '..', '..', 'atenas-packs'),
-    path.join(app.getPath('home'), 'atenas-packs'),
-    path.join(app.getPath('documents'), 'atenas-packs'),
-  ];
-  return cands.find((c) => listPacks(c).length) || null;
-}
-
-async function infoFor(keys) {
-  const need = [...new Set(keys.map((k) => String(k).toLowerCase()))].filter((k) => !infoCache.has(k));
-  if (need.length) {
-    try {
-      const got = await modrinth.projects(need);
-      for (const k of need) infoCache.set(k, got[k] || got[Object.keys(got).find((x) => x.toLowerCase() === k)] || null);
-      for (const [k, v] of Object.entries(got)) infoCache.set(k.toLowerCase(), v);
-    } catch { /* sin internet: se muestra el slug */ }
-  }
-  return (k) => infoCache.get(String(k).toLowerCase()) || null;
-}
-
-async function loadPack() {
-  const dir = currentPackDir();
-  const meta = readJson(path.join(dir, 'pack.json'), {});
-  const text = fs.readFileSync(path.join(dir, 'mods.txt'), 'utf8');
-  const cfEntries = cf.readEntries(dir);
-  const cfLock = cf.readLock(dir);
-  const cfNow = JSON.stringify(cfEntries);
-  if (!snapshots.has(dir)) snapshots.set(dir, { txt: text, cf: cfNow });
-  const lock = readJson(path.join(dir, 'mods.lock.json'), { mods: {} });
-  const lockMods = Object.entries(lock.mods || {}).map(([pid, m]) => ({ pid, ...m }));
-  const entries = mf.listMods(text);
-  const slugs = new Set(entries.map((e) => e.slug.toLowerCase()));
-
-  const info = await infoFor([...entries.map((e) => e.slug), ...lockMods.filter((m) => !m.explicit).flatMap((m) => [m.slug, m.pid])]);
-
-  const mods = entries.map((e) => {
-    const l = lockMods.find((m) => m.explicit && String(m.slug).toLowerCase() === e.slug.toLowerCase());
-    const i = info(e.slug);
-    let status = 'ok';
-    if (!l) status = 'new';
-    else if (e.pin && e.pin !== l.version) status = 'changed';
-    return {
-      slug: e.slug, pin: e.pin, section: e.section || '', status,
-      version: l ? l.version : null, filename: l ? l.filename : null,
-      title: i ? i.title : e.slug, icon: i ? i.icon : null, description: i ? i.description : '',
-    };
-  });
-  const removed = lockMods.filter((m) => m.explicit && !slugs.has(String(m.slug).toLowerCase()))
-    .map((m) => ({ slug: m.slug, version: m.version, filename: m.filename, title: (info(m.slug) || {}).title || m.slug }));
-  const deps = lockMods.filter((m) => !m.explicit).map((m) => {
-    const i = info(m.slug) || info(m.pid);
-    return { slug: i ? i.slug : m.slug, title: i ? i.title : m.slug, version: m.version, filename: m.filename, icon: i ? i.icon : null };
-  });
-  // ── mods de CurseForge ──
-  const cfLockMods = Object.entries(cfLock.mods || {}).map(([id, m]) => ({ id: Number(id), ...m }));
-  for (const e of cfEntries) {
-    const l = cfLockMods.find((m) => m.explicit && m.id === e.modId);
-    mods.push({ source: 'curseforge', slug: e.slug, modId: e.modId, pin: null, section: e.section || '', status: l ? 'ok' : 'new',
-      version: l ? l.filename : null, filename: l ? l.filename : null, title: e.title || e.slug, icon: e.icon || null, description: '' });
-  }
-  for (const m of cfLockMods) {
-    if (m.explicit && !cfEntries.some((e) => e.modId === m.id)) removed.push({ source: 'curseforge', slug: m.slug, filename: m.filename, title: m.title });
-    if (!m.explicit) deps.push({ slug: m.slug, title: m.title, version: null, filename: m.filename, icon: null, source: 'curseforge' });
-  }
-  const lockFiles = new Set([...lockMods, ...cfLockMods].map((m) => m.filename));
-  const modsDir = path.join(dir, 'files', 'mods');
-  const manual = fs.existsSync(modsDir)
-    ? fs.readdirSync(modsDir).filter((f) => /\.jar$/i.test(f) && !lockFiles.has(f)).map((f) => ({ filename: f, size: fs.statSync(path.join(modsDir, f)).size }))
-    : [];
-
-  const pending = mods.filter((m) => m.status !== 'ok').length + removed.length;
-  return {
-    meta: { id: meta.id, name: meta.name, minecraft: meta.minecraft, loader: meta.loader, server: meta.server },
-    mods, removed, deps, manual, pending,
-    sections: [...new Set([...mf.listSections(text), ...cfEntries.map((e) => e.section).filter(Boolean)])],
-    changed: text !== snapshots.get(dir).txt || cfNow !== snapshots.get(dir).cf,
-    cfKey: !!getCfKey(),
-    git: await gitlib.root(dir) !== null,
-  };
-}
-
-function mutateTxt(fn) {
-  const dir = currentPackDir();
-  const file = path.join(dir, 'mods.txt');
-  const before = fs.readFileSync(file, 'utf8');
-  const after = fn(before);
-  if (after !== before) fs.writeFileSync(file, after);
-}
-
-// ───────── IPC ─────────
-handle('app:init', async () => {
-  let s = getSettings();
-  if (!s.repoDir || !fs.existsSync(s.repoDir)) {
-    const g = guessRepoDir();
-    if (g) s = saveSettings({ repoDir: g });
-  }
-  const packs = listPacks(s.repoDir);
-  if (packs.length && !packs.some((p) => p.id === s.packId)) s = saveSettings({ packId: packs[0].id });
-  return { repoDir: s.repoDir || null, packs: packs.map((p) => p.id), packId: s.packId || null, version: app.getVersion() };
+handle('pack:check', async (packId) => {
+  const { summary } = await checkPack(packId);
+  return summary;
 });
 
-handle('repo:choose', async () => {
-  const r = await dialog.showOpenDialog(win, { title: 'Elige la carpeta atenas-packs (o la de un modpack)', properties: ['openDirectory'] });
-  if (r.canceled || !r.filePaths[0]) return null;
-  const packs = listPacks(r.filePaths[0]);
-  if (!packs.length) throw new Error('Esa carpeta no contiene ningún modpack (busco carpetas con pack.json y mods.txt).');
-  saveSettings({ repoDir: r.filePaths[0], packId: packs[0].id });
-  return { repoDir: r.filePaths[0], packs: packs.map((p) => p.id), packId: packs[0].id };
-});
-handle('pack:select', async (id) => { saveSettings({ packId: id }); return true; });
-handle('pack:load', loadPack);
-handle('pack:openFolder', async () => { await shell.openPath(currentPackDir()); return true; });
-
-handle('mods:add', async ({ source, slug, pin, section, modId, title, icon }) => {
-  if (source === 'curseforge') {
-    const dir = currentPackDir();
-    const entries = cf.readEntries(dir);
-    if (!Number.isInteger(modId)) throw new Error('Mod de CurseForge no válido');
-    if (entries.some((e) => e.modId === modId)) throw new Error(`"${title || slug}" ya está en la lista`);
-    entries.push({ slug, modId, title: title || slug, icon: icon || null, section: section || '' });
-    cf.writeEntries(dir, entries);
-    // si ya estaba en mods.txt (y Modrinth no lo encontraba), se pasa a CurseForge sin duplicar
-    try { mutateTxt((t) => mf.removeMod(t, slug)); } catch { /* no estaba */ }
-    return loadPack();
-  }
-  mutateTxt((t) => mf.addMod(t, { slug: String(slug).trim(), pin: pin || null, section: section || null }));
-  return loadPack();
-});
-handle('mods:remove', async (slug, source) => {
-  if (source === 'curseforge') {
-    const dir = currentPackDir();
-    cf.writeEntries(dir, cf.readEntries(dir).filter((e) => e.slug !== slug));
-  } else mutateTxt((t) => mf.removeMod(t, slug));
-  return loadPack();
-});
-handle('mods:pin', async (slug, pin) => { mutateTxt((t) => mf.setPin(t, slug, pin || null)); return loadPack(); });
-handle('mods:move', async (slug, section) => { mutateTxt((t) => mf.moveMod(t, slug, section || null)); return loadPack(); });
-handle('mods:discard', async () => {
-  const dir = currentPackDir();
-  if (snapshots.has(dir)) {
-    const snap = snapshots.get(dir);
-    fs.writeFileSync(path.join(dir, 'mods.txt'), snap.txt);
-    cf.writeEntries(dir, JSON.parse(snap.cf));
-  }
-  return loadPack();
-});
-
-handle('mr:search', async (q, offset) => {
-  const meta = readJson(path.join(currentPackDir(), 'pack.json'), {});
-  return modrinth.search(q, { mc: meta.minecraft, loader: meta.loader && meta.loader.type, offset: offset || 0 });
-});
-handle('mr:versions', async (slug) => {
-  const meta = readJson(path.join(currentPackDir(), 'pack.json'), {});
-  return modrinth.versions(slug, { mc: meta.minecraft, loader: meta.loader && meta.loader.type });
-});
-
-handle('cf:status', async () => ({ hasKey: !!getCfKey() }));
-handle('cf:setKey', async (raw) => {
-  const key = cf.cleanKey(raw);
-  if (key.length < 20) throw new Error('Esa API key no parece válida (muy corta). Copia la clave completa de console.curseforge.com → API keys.');
-  const probe = cf.makeHttp(key);
+handle('pack:update', async (packId) => {
+  if (busy) throw new Error('Ya hay una operación en curso');
+  busy = true;
   try {
-    const r = await probe.json('/games/432');    // 401/403 -> lanza con el motivo real
-    if (!r) throw new Error('CurseForge no respondió como se esperaba.');
-  } catch (err) {
-    if (err.authFailed && err.authFailed !== 'x') {
-      const shape = key.startsWith('$2') ? '' : ' Ojo: las keys de CurseForge suelen empezar por $2a$10$… y tienen unos 60 caracteres; la tuya empieza distinto, revisa que copiaste la «API key» y no otro dato.';
-      err.message += shape;
-    }
-    throw err;
+    const { manifest, diff, pack } = await checkPack(packId);
+    if (diff.hasChanges || !diff.installed) await runUpdate(pack, manifest, diff);
+    const { summary } = await checkPack(packId);
+    return summary;
+  } finally {
+    busy = false;
   }
-  setCfKey(key);
-  return { hasKey: true };
-});
-handle('cf:clearKey', async () => { saveSettings({ cfKeyEnc: null, cfKeyPlain: null }); return { hasKey: false }; });
-handle('cf:search', async (q, offset) => {
-  const meta = readJson(path.join(currentPackDir(), 'pack.json'), {});
-  return cf.search(cfHttp(), q, { mc: meta.minecraft, loader: meta.loader && meta.loader.type, offset: offset || 0 });
 });
 
-// jars propios (mods que no están en Modrinth): se copian a files/mods y se suben con git
-handle('jar:import', async (paths) => {
-  const dir = path.join(currentPackDir(), 'files', 'mods');
+handle('pack:play', async (packId) => {
+  if (busy) throw new Error('Ya hay una operación en curso');
+  const mclcAuth = await account.getMclc(); // lanza NEED_LOGIN si no hay sesión
+  busy = true;
+  play(packId, mclcAuth).catch((err) => {
+    send('game:state', { state: 'error', message: err.message || String(err) });
+  }).finally(() => { busy = false; });
+  return true;
+});
+
+async function play(packId, mclcAuth) {
+  send('game:state', { state: 'preparing', message: 'Comprobando mods…' });
+  const { manifest, diff, pack, summary } = await checkPack(packId);
+  if (!summary.offline && (diff.hasChanges || !diff.installed)) {
+    send('game:state', { state: 'updating', message: 'Actualizando mods…' });
+    await runUpdate(pack, manifest, diff);
+  }
+  const dir = instanceDir(pack.id);
+
+  send('game:state', { state: 'preparing', message: 'Preparando Java…' });
+  const major = manifest.java || javaMajorFor(manifest.minecraft);
+  const javaPath = await ensureJava(major, runtimeDir(), gameLog, (bytes) => {
+    send('game:state', { state: 'preparing', message: `Descargando Java ${major}… ${(bytes / 1048576).toFixed(0)} MB` });
+  });
+
+  send('game:state', { state: 'preparing', message: 'Preparando ' + (manifest.loader?.type || 'Minecraft') + '…' });
+  const customId = await ensureLoader(manifest, dir, javaPath, gameLog);
+
+  send('game:state', { state: 'preparing', message: 'Descargando archivos de Minecraft…' });
+  let startedAt = 0;
+  const code = await launchGame({
+    manifest,
+    instanceDir: dir,
+    mclcAuth,
+    javaPath,
+    customId,
+    ramMb: getSettings().ramMb,
+    optimizedJvm: getSettings().jvmOptimized,
+    hooks: {
+      onLog: gameLog,
+      onStarted: () => {
+        startedAt = Date.now();
+        send('game:state', { state: 'running', message: 'Minecraft en ejecución' });
+        if (getSettings().minimizeOnPlay && win && !win.isDestroyed()) win.minimize();
+      },
+      onProgress: (p) => send('game:state', { state: 'preparing', message: `Descargando ${p.type || 'archivos'}… ${p.task}/${p.total}` }),
+    },
+  });
+  if (startedAt) {
+    const cur = getSettings();
+    setSettings({
+      playtime: { ...cur.playtime, [pack.id]: (cur.playtime[pack.id] || 0) + Math.round((Date.now() - startedAt) / 1000) },
+      lastPlayed: { ...cur.lastPlayed, [pack.id]: Date.now() },
+    });
+  }
+  if (win && !win.isDestroyed() && win.isMinimized()) win.restore();
+  send('game:state', { state: 'closed', playtime: getSettings().playtime, code, message: code === 0 ? 'Juego cerrado' : `Minecraft se cerró con código ${code}` });
+}
+
+handle('server:status', async (address) => {
+  if (typeof address !== 'string' || address.length > 260) throw new Error('Dirección no válida');
+  return pingServer(address);
+});
+
+handle('pack:repair', async (packId) => {
+  if (busy) throw new Error('Ya hay una operación en curso');
+  busy = true;
+  try {
+    const pack = await findPack(packId);
+    try { fs.unlinkSync(path.join(instanceDir(pack.id), STATE_FILE)); } catch {}
+    const { manifest, diff } = await checkPack(packId);
+    await runUpdate(pack, manifest, diff);
+    return (await checkPack(packId)).summary;
+  } finally {
+    busy = false;
+  }
+});
+
+handle('app:openLink', async (key) => {
+  const url = (config.links || {})[key];
+  if (typeof url !== 'string' || !/^https:\/\//.test(url)) throw new Error('Enlace no disponible');
+  await shell.openExternal(url);
+  return true;
+});
+
+handle('auth:login', async () => account.login());
+handle('auth:offline', async (name) => account.loginOffline(name));
+handle('auth:logout', async () => { account.logout(); return true; });
+handle('settings:set', async (patch) => {
+  const allowed = {};
+  if (Number.isFinite(patch.ramMb)) allowed.ramMb = Math.max(1024, Math.round(patch.ramMb));
+  if (typeof patch.selectedPack === 'string' || patch.selectedPack === null) allowed.selectedPack = patch.selectedPack;
+  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
+  if (['violet', 'ocean', 'emerald', 'ember'].includes(patch.theme)) allowed.theme = patch.theme;
+  if (patch.seenNews && typeof patch.seenNews === 'object') {
+    const clean = {};
+    for (const [k, v] of Object.entries(patch.seenNews).slice(-200)) if (v === true && k.length < 100) clean[k] = true;
+    allowed.seenNews = clean;
+  }
+  return setSettings(allowed);
+});
+handle('app:openFolder', async (packId, sub) => {
+  const allowedSub = { screenshots: 'screenshots', mods: 'mods' };
+  const dir = sub && allowedSub[sub] ? path.join(instanceDir(packId), allowedSub[sub]) : instanceDir(packId);
   fs.mkdirSync(dir, { recursive: true });
-  const done = [], skipped = [];
-  for (const p of paths || []) {
-    if (!/\.jar$/i.test(p) || !fs.existsSync(p)) { skipped.push(path.basename(p) + ' (no es un .jar)'); continue; }
-    const size = fs.statSync(p).size;
-    if (size > 95 * 1048576) { skipped.push(path.basename(p) + ' (pesa más de 95 MB: GitHub no lo acepta)'); continue; }
-    fs.copyFileSync(p, path.join(dir, path.basename(p)));
-    done.push(path.basename(p));
-  }
-  return { done, skipped, pack: await loadPack() };
-});
-handle('jar:pick', async () => {
-  const r = await dialog.showOpenDialog(win, { title: 'Elige uno o varios .jar', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mods', extensions: ['jar'] }] });
-  return r.canceled ? [] : r.filePaths;
-});
-handle('jar:delete', async (filename) => {
-  const base = path.basename(String(filename));
-  const p = await loadPack();
-  if (!p.manual.some((m) => m.filename === base)) throw new Error('Solo puedes borrar aquí los mods subidos a mano.');
-  fs.unlinkSync(path.join(currentPackDir(), 'files', 'mods', base));
-  return loadPack();
+  await shell.openPath(dir);
+  return true;
 });
 
-// ───────── sincronizar y publicar ─────────
-// Mods de CurseForge: se sincronizan antes que los de Modrinth. Devuelve la lista de problemas.
-async function runCf(dir, dry, log) {
-  const hasWork = cf.readEntries(dir).length || Object.keys(cf.readLock(dir).mods || {}).length;
-  if (!hasWork) return [];
-  const modrinthSlugs = new Set(Object.values(readJson(path.join(dir, 'mods.lock.json'), { mods: {} }).mods || {}).map((m) => String(m.slug).toLowerCase()));
-  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
-  const have = new Set([...modrinthSlugs].map(norm));
-  const r = await cf.syncCurseforge(dir, { http: cfHttp(), dry, log, alreadyHave: (slug) => have.has(norm(slug)) });
-  return r.problems;
+// ───────────────────────── vigilante de actualizaciones ─────────────────────────
+function startWatcher() {
+  const every = Math.max(1, Number(config.checkIntervalMinutes) || 5) * 60 * 1000;
+  setInterval(async () => {
+    if (busy) return;
+    const id = getSettings().selectedPack;
+    if (!id) return;
+    try {
+      const { summary } = await checkPack(id);
+      if (summary.status === 'update' && lastNotifiedVersion !== summary.remoteVersion) {
+        lastNotifiedVersion = summary.remoteVersion;
+        send('pack:update-available', summary);
+        if (getSettings().notify && win && !win.isFocused() && Notification.isSupported()) {
+          new Notification({
+            title: 'Atenas Launcher',
+            body: `Hay una actualización de mods en ${summary.name} (v${summary.remoteVersion})`,
+          }).show();
+        }
+      }
+    } catch { /* sin conexión: se reintenta luego */ }
+  }, every);
 }
 
-function problemsOf(res, lines = []) {
-  const out = [];
-  for (const m of (res && res.missing) || []) {
-    if (m.wanted !== false) out.push(`${m.slug}: ${m.reason || 'no se pudo añadir'}`);
-  }
-  for (const m of (res && res.unresolvedDeps) || []) {
-    out.push(`Falta la dependencia ${m.modId} (la pide ${(m.requiredBy || []).join(', ')})${m.hints && m.hints.length ? ' → quizá: ' + m.hints.join(' | ') : ''}`);
-  }
-  // respaldo: si tu pack-sync no devuelve los datos, los avisos "  ! algo" del registro cuentan igual
-  if (!out.length) for (const l of lines) if (/^\s+! /.test(l)) out.push(l.replace(/^\s+! /, ''));
-  return out;
-}
-
-handle('pack:preview', async () => {
-  if (busy) throw new Error('Ya hay una operación en curso');
-  busy = true;
-  try {
-    const lines = [];
-    const dir = currentPackDir();
-    const log = (l) => { lines.push(String(l)); send('log', l); };
-    const cfProblems = await runCf(dir, true, log);
-    lines.length = 0;   // desde aquí solo cuentan los avisos de Modrinth
-    const res = (await syncPack(dir, { dry: true, log })) || {};
-    return { problems: [...cfProblems, ...problemsOf(res, lines)], pack: await loadPack() };
-  } finally { busy = false; }
-});
-
-handle('pack:publish', async (note, { push = true } = {}) => {
-  if (busy) throw new Error('Ya hay una operación en curso');
-  busy = true;
-  try {
-    const dir = currentPackDir();
-    const lines = [];
-    const log = (l) => { lines.push(String(l)); send('log', l); };
-    log('▶ Descargando mods y comprobando dependencias…');
-    const cfProblems = await runCf(dir, false, log);
-    if (cfProblems.length) {
-      log('\n✖ No se sube nada: corrige esto primero.');
-      return { blocked: true, problems: cfProblems, pack: await loadPack() };
-    }
-    const res = (await syncPack(dir, { note: note || undefined, log })) || {};
-    const problems = problemsOf(res, lines);
-    if (problems.length) {
-      log('\n✖ No se sube nada: corrige esto primero.');
-      return { blocked: true, problems, pack: await loadPack() };
-    }
-    let pushed = false;
-    if (push) {
-      const name = (readJson(path.join(dir, 'pack.json'), {}).name) || path.basename(dir);
-      const msg = `${name}: ${note || 'actualización de mods'}${res.manifestInfo ? ` (v${res.manifestInfo.version})` : ''}`;
-      log('\n▶ Subiendo a GitHub…');
-      ({ pushed } = await gitlib.commitAndPush(dir, msg, log));
-    }
-    snapshots.set(dir, { txt: fs.readFileSync(path.join(dir, 'mods.txt'), 'utf8'), cf: JSON.stringify(cf.readEntries(dir)) });
-    log(pushed ? '\n✔ Publicado. Tus amigos recibirán el aviso de actualización en unos minutos.' : '\n✔ Listo (sin subir a GitHub).');
-    return { blocked: false, pushed, version: res.manifestInfo && res.manifestInfo.version, summary: res.summary, pack: await loadPack() };
-  } finally { busy = false; }
-});
-
-// ───────── ventana ─────────
+// ───────────────────────── ventana ─────────────────────────
 function createWindow() {
   win = new BrowserWindow({
-    width: 1180, height: 780, minWidth: 980, minHeight: 640,
-    backgroundColor: '#0b0a14', title: 'Atenas Admin', show: false, autoHideMenuBar: true,
-    icon: path.join(__dirname, '..', 'assets', 'icon.png'),
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+    width: 1120,
+    height: 700,
+    minWidth: 920,
+    minHeight: 620,
+    frame: false,
+    show: false,
+    backgroundColor: '#090812',
+    title: config.launcherName,
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
   });
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => win && win.show());
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  // Los enlaces externos se abren en el navegador, nunca dentro del launcher
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\//.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.on('closed', () => { win = null; });
 }
 
-if (!app.requestSingleInstanceLock()) app.quit();
-else {
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-  app.whenReady().then(() => { Menu.setApplicationMenu(null); createWindow(); });
+  app.whenReady().then(() => {
+    Menu.setApplicationMenu(null);
+    createWindow();
+    startWatcher();
+    if (app.isPackaged) {
+      try {
+        const { autoUpdater } = require('electron-updater');
+        autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+      } catch {}
+    }
+  });
   app.on('window-all-closed', () => app.quit());
 }
