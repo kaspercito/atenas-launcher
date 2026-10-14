@@ -1,5 +1,33 @@
 'use strict';
+const fs = require('fs');
+const path = require('path');
 const { Client } = require('minecraft-launcher-core');
+
+/**
+ * MCLC ignora los argumentos de JVM del json de Forge/NeoForge (1.17+): módulos, --add-opens, -DignoreList...
+ * Sin ellos el juego se cae con "module java.base does not opens java.lang.invoke". Los leemos nosotros.
+ */
+function loaderJvmArgs(instanceDir, customId) {
+  let json;
+  try { json = JSON.parse(fs.readFileSync(path.join(instanceDir, 'versions', customId, `${customId}.json`), 'utf8')); }
+  catch { return []; }
+  const subs = {
+    library_directory: path.join(instanceDir, 'libraries'),
+    classpath_separator: path.delimiter,
+    version_name: customId,
+  };
+  const raw = (json.arguments?.jvm || []).filter((a) => typeof a === 'string');
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const a = raw[i];
+    if (a === '-cp' || a === '-classpath') { i++; continue; }              // el classpath lo arma MCLC
+    if (/\$\{(natives_directory|launcher_name|launcher_version|classpath)\}/.test(a)) continue;
+    const v = a.replace(/\$\{(\w+)\}/g, (m, k) => (k in subs ? subs[k] : m));
+    if (/\$\{\w+\}/.test(v)) continue;                                      // placeholder que no sabemos resolver
+    out.push(v);
+  }
+  return out;
+}
 
 function toMem(mb) {
   mb = Math.max(512, Math.round(mb));
@@ -48,7 +76,9 @@ function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb
     version: { number: manifest.minecraft, type: 'release' },
     memory: { max: toMem(maxMb), min: toMem(minMb) },
   };
-  if (optimizedJvm) opts.customArgs = OPTIMIZED_JVM_ARGS;
+  const extra = customId ? loaderJvmArgs(instanceDir, customId) : [];
+  const jvm = [...(optimizedJvm ? OPTIMIZED_JVM_ARGS : []), ...extra];
+  if (jvm.length) opts.customArgs = jvm;
   if (customId) opts.version.custom = customId;
   if (manifest.server) {
     opts.quickPlay = { type: 'multiplayer', identifier: manifest.server };
@@ -73,4 +103,4 @@ function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb
   });
 }
 
-module.exports = { launchGame, parseMb };
+module.exports = { launchGame, parseMb, loaderJvmArgs };
