@@ -7,6 +7,8 @@ const mf = require('./lib/modsfile');
 const modrinth = require('./lib/modrinth');
 const gitlib = require('./lib/git');
 const cf = require('./lib/curseforge');
+const packsLib = require('./lib/packs');
+const mrpack = require('./lib/mrpack');
 const { syncPack } = require('../tools/pack-sync');
 
 let win = null;
@@ -65,12 +67,26 @@ function handle(channel, fn) {
 // ───────── packs ─────────
 const isPackDir = (d) => fs.existsSync(path.join(d, 'pack.json')) && fs.existsSync(path.join(d, 'mods.txt'));
 
+// La carpeta "raíz" es la que contiene todos los modpacks (y packs.json). Si elegiste la de un pack, es su carpeta padre.
+const packsRoot = (repoDir) => (repoDir && isPackDir(repoDir) ? path.dirname(repoDir) : repoDir);
+
 function listPacks(repoDir) {
-  if (!repoDir || !fs.existsSync(repoDir)) return [];
-  if (isPackDir(repoDir)) return [{ id: path.basename(repoDir), dir: repoDir }];
-  return fs.readdirSync(repoDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !d.name.startsWith('.') && isPackDir(path.join(repoDir, d.name)))
-    .map((d) => ({ id: d.name, dir: path.join(repoDir, d.name) }));
+  const root = packsRoot(repoDir);
+  return packsLib.listPackDirs(root);
+}
+
+// Datos de cada pack para los selectores (nombre, Minecraft, loader…)
+const packList = (repoDir) => listPacks(repoDir).map((p) => packsLib.packInfo(p.dir));
+
+// URL pública donde viven los packs: la que usa el launcher (packsIndexUrl), la de otro pack, o el remoto de git
+async function rawRoot(root) {
+  const cfg = readJson(path.join(__dirname, '..', 'launcher.config.json'), {});
+  return packsLib.guessRawRoot({ indexUrl: cfg.packsIndexUrl, root }) || (await gitlib.remoteRaw(root));
+}
+
+// Mantiene al día packs.json (el índice que lee el launcher). Devuelve { file, packs, changed }
+async function refreshIndex(root) {
+  return packsLib.writeIndex(root, { rawRoot: await rawRoot(root) });
 }
 
 function currentPackDir() {
@@ -153,7 +169,7 @@ async function loadPack() {
 
   const pending = mods.filter((m) => m.status !== 'ok').length + removed.length;
   return {
-    meta: { id: meta.id, name: meta.name, minecraft: meta.minecraft, loader: meta.loader, server: meta.server },
+    meta: { id: meta.id, name: meta.name, minecraft: meta.minecraft, loader: meta.loader, server: meta.server, hidden: meta.hidden === true, published: fs.existsSync(path.join(dir, 'manifest.json')) },
     mods, removed, deps, manual, pending,
     sections: [...new Set([...mf.listSections(text), ...cfEntries.map((e) => e.section).filter(Boolean)])],
     changed: text !== snapshots.get(dir).txt || cfNow !== snapshots.get(dir).cf,
@@ -177,9 +193,9 @@ handle('app:init', async () => {
     const g = guessRepoDir();
     if (g) s = saveSettings({ repoDir: g });
   }
-  const packs = listPacks(s.repoDir);
+  const packs = packList(s.repoDir);
   if (packs.length && !packs.some((p) => p.id === s.packId)) s = saveSettings({ packId: packs[0].id });
-  return { repoDir: s.repoDir || null, packs: packs.map((p) => p.id), packId: s.packId || null, version: app.getVersion() };
+  return { repoDir: s.repoDir || null, packs, packId: s.packId || null, version: app.getVersion() };
 });
 
 handle('repo:choose', async () => {
@@ -188,7 +204,7 @@ handle('repo:choose', async () => {
   const packs = listPacks(r.filePaths[0]);
   if (!packs.length) throw new Error('Esa carpeta no contiene ningún modpack (busco carpetas con pack.json y mods.txt).');
   saveSettings({ repoDir: r.filePaths[0], packId: packs[0].id });
-  return { repoDir: r.filePaths[0], packs: packs.map((p) => p.id), packId: packs[0].id };
+  return { repoDir: r.filePaths[0], packs: packList(r.filePaths[0]), packId: packs[0].id };
 });
 handle('pack:select', async (id) => { saveSettings({ packId: id }); return true; });
 handle('pack:load', loadPack);
@@ -299,6 +315,8 @@ function readConfig() {
     loader: { type: (m.loader && m.loader.type) || 'forge', version: (m.loader && m.loader.version) || '' },
     ram: { min: (m.ram && m.ram.min) || '2G', max: (m.ram && m.ram.max) || '4G' },
     server: m.server || '',
+    description: m.description || '',
+    listed: m.hidden !== true,
   };
 }
 
@@ -322,6 +340,7 @@ handle('pack:saveConfig', async (c) => {
   if (!/^\d+\.\d+(\.\d+)?$/.test(mc)) throw new Error('La versión de Minecraft debe verse como 1.20.1');
   const type = String(c.loader && c.loader.type || '').toLowerCase();
   if (!LOADERS.includes(type)) throw new Error('Loader no válido: ' + type);
+  packsLib.checkCompat(type, mc);
   const lv = String(c.loader && c.loader.version || '').trim();
   if ((type === 'forge' || type === 'neoforge') && !lv) throw new Error(`Para ${type} tienes que indicar la versión exacta (ej. 47.3.0).`);
   const min = String(c.ram && c.ram.min || '').trim().toUpperCase();
@@ -337,12 +356,18 @@ handle('pack:saveConfig', async (c) => {
   if (name) meta.name = name;
   const server = String(c.server || '').trim();
   if (server) meta.server = server; else delete meta.server;
+  const description = String(c.description || '').trim().slice(0, 300);
+  if (description) meta.description = description; else delete meta.description;
+  if (c.listed === false) meta.hidden = true; else delete meta.hidden;
   fs.writeFileSync(file, JSON.stringify(meta, null, 2) + '\n');
   return { config: readConfig(), pack: await loadPack() };
 });
 
 // Sugerencias de versión del loader para el Minecraft indicado (si falla, se escribe a mano)
-handle('loader:versions', async (type, mc) => {
+const numKey = (v) => String(v).split(/[.-]/).map((x) => (/^\d+$/.test(x) ? Number(x) : -1));
+const byVersionDesc = (a, b) => { const x = numKey(a), y = numKey(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (y[i] ?? -2) - (x[i] ?? -2); if (d) return d; } return 0; };
+
+async function loaderVersions(type, mc) {
   mc = String(mc || '').trim();
   if (type === 'forge') {
     const j = await getJson('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
@@ -358,14 +383,110 @@ handle('loader:versions', async (type, mc) => {
     const list = await getJson(`${base}/${encodeURIComponent(mc)}`);
     return list.slice(0, 8).map((e) => ({ version: e.loader.version, label: e.loader.stable === false ? 'beta' : 'estable' }));
   }
-  if (type === 'neoforge') {
-    const [, minor, patch] = mc.split('.');
-    const prefix = `${minor}.${patch || 0}.`;
-    const j = await getJson('https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge');
-    const vs = (j.versions || []).filter((v) => v.startsWith(prefix) && !/-/.test(v)).slice(-8).reverse();
+  if (type === 'neoforge' && mc === '1.20.1') {
+    // NeoForge para 1.20.1 (47.x) se publica como "forge" dentro de net.neoforged
+    const j = await getJson('https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/forge');
+    const vs = (j.versions || []).filter((v) => v.startsWith('1.20.1-') && !/-(alpha|beta)/.test(v)).map((v) => v.slice('1.20.1-'.length)).sort(byVersionDesc).slice(0, 8);
     return vs.map((v, i) => ({ version: v, label: i === 0 ? 'última' : '' }));
   }
+  if (type === 'neoforge') {
+    const parts = mc.split('.');
+    // Minecraft 26.1+ usa cuatro números: 26.1.0.10 = Minecraft 26.1.0, versión 10 de NeoForge
+    const prefix = Number(parts[0]) >= 26 ? `${parts[0]}.${parts[1]}.${parts[2] || 0}.` : `${parts[1]}.${parts[2] || 0}.`;
+    const j = await getJson('https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge');
+    const all = (j.versions || []).filter((v) => v.startsWith(prefix)).sort(byVersionDesc);
+    const stable = all.filter((v) => !/-/.test(v));
+    // Si todavía no hay versión estable para ese Minecraft, se ofrecen las beta (marcadas)
+    const list = stable.length ? stable : all;
+    return list.slice(0, 8).map((v, i) => ({ version: v, label: /-/.test(v) ? 'beta' : i === 0 ? 'última' : '' }));
+  }
   return [];
+}
+handle('loader:versions', async (type, mc) => loaderVersions(type, mc));
+
+// Versiones de Minecraft (releases) para sugerir en los formularios
+const MC_FALLBACK = ['1.21.1', '1.21', '1.20.6', '1.20.4', '1.20.1', '1.19.2', '1.18.2', '1.16.5'];
+let mcCache = null;
+handle('mc:versions', async () => {
+  if (mcCache) return mcCache;
+  try {
+    const j = await getJson('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
+    const list = (j.versions || []).filter((v) => v.type === 'release' && packsLib.MC_RE.test(v.id)).map((v) => v.id).slice(0, 60);
+    if (list.length) return (mcCache = list);
+  } catch { /* sin internet: lista básica */ }
+  return MC_FALLBACK;
+});
+
+// ───────── modpacks: crear, importar, ocultar, borrar ─────────
+handle('folder:pick', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Elige la carpeta de la instancia (la que contiene mods)', properties: ['openDirectory'] });
+  return r.canceled ? null : r.filePaths[0];
+});
+handle('mrpack:pick', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Elige un modpack de Modrinth (.mrpack)', properties: ['openFile'], filters: [{ name: 'Modpack de Modrinth', extensions: ['mrpack'] }] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  return { path: r.filePaths[0], info: mrpack.inspect(r.filePaths[0]) };
+});
+
+handle('pack:create', async ({ spec, source } = {}) => {
+  if (busy) throw new Error('Ya hay una operación en curso');
+  busy = true;
+  let created = null;
+  try {
+    const s = getSettings();
+    const root = packsRoot(s.repoDir);
+    if (!root || !fs.existsSync(root)) throw new Error('Elige primero la carpeta de tus modpacks (botón «Cambiar carpeta»).');
+    const raw = await rawRoot(root);
+    if (!raw) throw new Error('No sé cuál es la dirección pública de tu repositorio de packs. Abre la carpeta clonada de GitHub (con remote «origin») o define "packsIndexUrl" en launcher.config.json.');
+
+    const sp = { ...spec, loader: { ...(spec && spec.loader) } };
+    // Fabric / Quilt sin versión: se usa la última estable
+    if ((sp.loader.type === 'fabric' || sp.loader.type === 'quilt') && !sp.loader.version) {
+      packsLib.checkCompat(sp.loader.type, sp.minecraft);
+      const vs = await loaderVersions(sp.loader.type, sp.minecraft).catch(() => []);
+      const st = vs.find((v) => v.label === 'estable') || vs[0];
+      if (!st) throw new Error(`No encontré ${sp.loader.type} para Minecraft ${sp.minecraft}.`);
+      sp.loader.version = st.version;
+    }
+    created = packsLib.createPack(root, sp, { rawRoot: raw });
+    const log = (l) => send('log', String(l));
+    let report = null;
+    const type = source && source.type;
+    if (type === 'folder') {
+      if (!source.path) throw new Error('Elige la carpeta de la instancia.');
+      report = packsLib.importFolder(created.dir, source.path);
+    } else if (type === 'mrpack') {
+      if (!source.path) throw new Error('Elige el archivo .mrpack.');
+      report = await mrpack.importInto(created.dir, source.path, { log });
+    }
+    saveSettings({ repoDir: root, packId: created.id });
+    snapshots.delete(created.dir);
+    return { id: created.id, report, packs: packList(root), publishNeeded: true };
+  } catch (err) {
+    // No dejar a medias un pack que no se pudo importar
+    if (created) { try { fs.rmSync(created.dir, { recursive: true, force: true }); } catch { /* nada que limpiar */ } }
+    throw err;
+  } finally { busy = false; }
+});
+
+handle('pack:delete', async (id, { push = true } = {}) => {
+  if (busy) throw new Error('Ya hay una operación en curso');
+  busy = true;
+  try {
+    const s = getSettings();
+    const root = packsRoot(s.repoDir);
+    const dir = packsLib.deletePack(root, id);
+    snapshots.delete(dir);
+    const idx = await refreshIndex(root);
+    let pushed = false;
+    if (push) {
+      const log = (l) => send('log', String(l));
+      ({ pushed } = await gitlib.commitAndPush(root, `Quitar modpack ${id}`, log, [dir, idx.file], { skipDir: true }));
+    }
+    const packs = packList(root);
+    saveSettings({ packId: packs.length ? packs[0].id : null });
+    return { packs, packId: packs.length ? packs[0].id : null, pushed };
+  } finally { busy = false; }
 });
 
 // ───────── sincronizar y publicar ─────────
@@ -426,12 +547,16 @@ handle('pack:publish', async (note, { push = true } = {}) => {
       log('\n✖ No se sube nada: corrige esto primero.');
       return { blocked: true, problems, pack: await loadPack() };
     }
+    // El launcher descubre los modpacks por packs.json: se actualiza con cada publicación
+    const root = packsRoot(getSettings().repoDir);
+    const idx = await refreshIndex(root);
+    log(`\n▶ Lista de modpacks: ${idx.packs.length} visible${idx.packs.length === 1 ? '' : 's'} en el launcher (${idx.packs.map((p) => p.name).join(', ') || 'ninguno'}).`);
     let pushed = false;
     if (push) {
       const name = (readJson(path.join(dir, 'pack.json'), {}).name) || path.basename(dir);
       const msg = `${name}: ${note || 'actualización de mods'}${res.manifestInfo ? ` (v${res.manifestInfo.version})` : ''}`;
       log('\n▶ Subiendo a GitHub…');
-      ({ pushed } = await gitlib.commitAndPush(dir, msg, log));
+      ({ pushed } = await gitlib.commitAndPush(dir, msg, log, [idx.file]));
     }
     snapshots.set(dir, { txt: fs.readFileSync(path.join(dir, 'mods.txt'), 'utf8'), cf: JSON.stringify(cf.readEntries(dir)) });
     log(pushed ? '\n✔ Publicado. Tus amigos recibirán el aviso de actualización en unos minutos.' : '\n✔ Listo (sin subir a GitHub).');
@@ -443,7 +568,7 @@ handle('pack:publish', async (note, { push = true } = {}) => {
 function createWindow() {
   win = new BrowserWindow({
     width: 1180, height: 780, minWidth: 980, minHeight: 640,
-    backgroundColor: '#0b0a14', title: 'Atenas Admin', show: false, autoHideMenuBar: true,
+    backgroundColor: '#050913', title: 'Atenas Admin', show: false, autoHideMenuBar: true,
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });

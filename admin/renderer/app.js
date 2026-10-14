@@ -31,6 +31,26 @@
   const fmtNum = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n));
   const norm = (s) => String(s || '').toLowerCase();
 
+  const LOADER = {
+    neoforge: { label: 'NeoForge', tag: 'Moderno · 1.20.1 en adelante' },
+    forge: { label: 'Forge', tag: 'Clásico · casi todas las versiones' },
+    fabric: { label: 'Fabric', tag: 'Ligero y rápido · 1.14+' },
+    quilt: { label: 'Quilt', tag: 'Compatible con mods de Fabric' },
+  };
+  const loaderLabel = (t) => (LOADER[t] && LOADER[t].label) || t || 'vanilla';
+  const packLabel = (p) => `${p.name} · ${loaderLabel(p.loader)} ${p.minecraft}${p.published ? '' : ' · borrador'}${p.hidden ? ' · oculto' : ''}`;
+  function fillPackSelect(packs, id) {
+    S.packs = packs; S.packId = id;
+    $('packSel').replaceChildren(...packs.map((p) => el('option', { value: p.id, text: packLabel(p) })));
+    if (id) $('packSel').value = id;
+  }
+  async function loadMcVersions() {
+    if (S.mcVersions) return S.mcVersions;
+    try { S.mcVersions = await call(api.mcVersions()); } catch { S.mcVersions = []; }
+    $('mcList').replaceChildren(...S.mcVersions.map((v) => el('option', { value: v })));
+    return S.mcVersions;
+  }
+
   function icon(m) {
     if (m.icon && /^https:\/\/(cdn\.modrinth\.com|media\.forgecdn\.net)\//.test(m.icon)) return el('img', { class: 'ico', src: m.icon, alt: '', loading: 'lazy' });
     return el('div', { class: 'ico', text: (m.title || m.slug || '?').charAt(0).toUpperCase() });
@@ -39,6 +59,7 @@
   function modal(title, bodyNodes, buttons) {
     return new Promise((resolve) => {
       const d = $('dialog');
+      d.className = 'dialog';
       d.replaceChildren(el('h2', { text: title }), ...bodyNodes);
       const close = (v) => { $('modal').hidden = true; resolve(v); };
       d.append(el('div', { class: 'row' }, ...buttons.map((b) =>
@@ -68,8 +89,9 @@
     const l = p.meta.loader || {};
     $('meta').replaceChildren(
       el('div', {}, el('b', { text: p.meta.name || S.packId })),
-      el('div', { text: `Minecraft ${p.meta.minecraft || '?'} · ${l.type || 'vanilla'} ${l.version || ''}` }),
+      el('div', { text: `Minecraft ${p.meta.minecraft || '?'} · ${loaderLabel(l.type)} ${l.version || ''}` }),
       p.meta.server ? el('div', { text: 'Servidor: ' + p.meta.server }) : null,
+      el('div', { text: p.meta.hidden ? 'Launcher: oculto' : p.meta.published ? 'Launcher: visible ✔' : 'Launcher: borrador (publícalo)' }),
       el('div', { text: p.git ? 'Git: conectado ✔' : 'Git: no es un repositorio ✖' }),
     );
     $('modsSub').textContent = `${p.mods.length} mods tuyos` + (p.deps.length ? ` + ${p.deps.length} dependencias automáticas` : '') + (p.manual.length ? ` + ${p.manual.length} .jar propios` : '');
@@ -246,6 +268,7 @@
 
   // ───────── publicar ─────────
   function log(line) {
+    if (S.onLog) S.onLog(line);
     const pre = $('log');
     pre.append(document.createTextNode(line + '\n'));
     pre.scrollTop = pre.scrollHeight;
@@ -288,6 +311,8 @@
   function fillSettings(c) {
     cfgOriginal = c;
     $('sName').value = c.name;
+    $('sDesc').value = c.description || '';
+    $('sListed').checked = c.listed !== false;
     $('sMc').value = c.minecraft;
     $('sLoader').value = c.loader.type;
     $('sLv').value = c.loader.version;
@@ -322,7 +347,7 @@
   }
   async function saveSettings() {
     const payload = {
-      name: $('sName').value, minecraft: $('sMc').value,
+      name: $('sName').value, minecraft: $('sMc').value, description: $('sDesc').value, listed: $('sListed').checked,
       loader: { type: $('sLoader').value, version: $('sLv').value },
       ram: { min: memOf($('sRamMin').value), max: memOf($('sRamMax').value) },
       server: $('sServer').value,
@@ -338,22 +363,197 @@
     } finally { $('sSave').disabled = false; }
   }
 
+  // ───────── nuevo modpack (asistente) ─────────
+  async function newPackWizard() {
+    const st = { source: 'empty', folder: null, mr: null, idTouched: false, ramTouched: false, busy: false, loader: 'neoforge' };
+    loadMcVersions();
+
+    const nameI = el('input', { type: 'text', placeholder: 'Ej. Mi NeoForge', maxlength: 60, autocomplete: 'off' });
+    const idI = el('input', { type: 'text', placeholder: 'se genera solo', autocomplete: 'off' });
+    const descI = el('input', { type: 'text', placeholder: 'Una línea que verán tus amigos (opcional)', maxlength: 300, autocomplete: 'off' });
+    const mcI = el('input', { type: 'text', list: 'mcList', placeholder: '1.21.1', autocomplete: 'off' });
+    const lvI = el('input', { type: 'text', placeholder: '21.1.172', autocomplete: 'off' });
+    const ramMinI = el('input', { type: 'number', min: 1, max: 64, step: 0.5 });
+    const ramMaxI = el('input', { type: 'number', min: 1, max: 64, step: 0.5 });
+    const serverI = el('input', { type: 'text', placeholder: 'atenasmc.live (opcional)', autocomplete: 'off' });
+    const lvChips = el('div', { class: 'chips' });
+    const lvBtn = el('button', { class: 'ghost', type: 'button', text: '🔎 Ver versiones' });
+    const srcBox = el('div', { class: 'srcbox' });
+    const status = el('p', { class: 'sub wstatus', text: '' });
+
+    const loaderBtns = Object.keys(LOADER).map((k) => el('button', { type: 'button', class: `lcard ld-${k}`, 'data-l': k, onclick: () => setLoader(k) },
+      el('b', { text: LOADER[k].label }), el('small', { text: LOADER[k].tag })));
+    function setLoader(k) {
+      st.loader = k;
+      loaderBtns.forEach((b) => b.classList.toggle('on', b.dataset.l === k));
+      lvChips.replaceChildren();
+      lvI.placeholder = k === 'neoforge' ? '21.1.172' : k === 'forge' ? '47.3.0' : 'última estable (automático)';
+      suggestRam();
+    }
+    function suggestRam() {
+      if (st.ramTouched) return;
+      const modern = Number((mcI.value.split('.')[1]) || 0) >= 20 || Number(mcI.value.split('.')[0]) >= 26;
+      const light = st.loader === 'fabric' || st.loader === 'quilt';
+      const [mn, mx] = light ? [2, 4] : modern ? [4, 6] : [3, 5];
+      ramMinI.value = mn; ramMaxI.value = mx;
+    }
+    ramMinI.oninput = ramMaxI.oninput = () => { st.ramTouched = true; };
+    mcI.oninput = suggestRam;
+    nameI.oninput = () => {
+      if (st.idTouched) return;
+      idI.value = nameI.value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    };
+    idI.oninput = () => { st.idTouched = true; };
+    lvBtn.onclick = () => guarded(async () => {
+      const mc = mcI.value.trim();
+      if (!mc) { toast('Escribe primero la versión de Minecraft', 'error'); return; }
+      lvBtn.disabled = true;
+      try {
+        const list = await call(api.loaderVersions(st.loader, mc));
+        lvChips.replaceChildren(...list.map((v) => el('button', { type: 'button', text: v.label ? `${v.version} · ${v.label}` : v.version, onclick: () => { lvI.value = v.version; lvChips.querySelectorAll('button').forEach((b) => b.classList.remove('on')); } })));
+        if (list.length && !lvI.value) lvI.value = list[0].version;
+        if (!list.length) toast(`No encontré versiones de ${loaderLabel(st.loader)} para Minecraft ${mc}. Puedes escribirla a mano.`, 'error', 7000);
+      } finally { lvBtn.disabled = false; }
+    });
+
+    const srcSeg = el('div', { class: 'seg' },
+      ...[['empty', 'Empezar vacío'], ['folder', 'Importar carpeta'], ['mrpack', 'Importar .mrpack']].map(([k, t]) => el('button', { type: 'button', 'data-s': k, class: k === 'empty' ? 'on' : '', text: t, onclick: () => setSource(k) })));
+    function setSource(k) {
+      st.source = k;
+      srcSeg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.s === k));
+      renderSource();
+    }
+    function renderSource() {
+      srcBox.replaceChildren();
+      if (st.source === 'empty') {
+        srcBox.append(el('p', { class: 'hint', text: 'Empiezas sin mods. Los añades desde «Añadir mods» (Modrinth o CurseForge) o arrastrando tus .jar.' }));
+      } else if (st.source === 'folder') {
+        srcBox.append(
+          el('div', { class: 'row nopush' },
+            el('button', { type: 'button', class: 'ghost', text: '📂 Elegir carpeta de la instancia…', onclick: () => guarded(async () => { const p = await call(api.pickFolder()); if (p) { st.folder = p; renderSource(); } }) }),
+            el('span', { class: 'desc', text: st.folder || 'Ninguna elegida' })),
+          el('p', { class: 'hint', text: 'Sirve para una instancia de CurseForge, Prism, Modrinth App o tu .minecraft. Se copian los .jar de mods y las carpetas de configuración (config, kubejs, defaultconfigs…). No se copian mundos, capturas ni options.txt.' }));
+      } else {
+        const m = st.mr;
+        srcBox.append(
+          el('div', { class: 'row nopush' },
+            el('button', { type: 'button', class: 'ghost', text: '📦 Elegir archivo .mrpack…', onclick: () => guarded(async () => {
+              const r = await call(api.pickMrpack());
+              if (!r) return;
+              st.mr = r;
+              const i = r.info;
+              if (!nameI.value.trim()) { nameI.value = i.name; nameI.oninput(); }
+              if (!descI.value.trim() && i.summary) descI.value = i.summary.slice(0, 300);
+              mcI.value = i.minecraft; lvI.value = i.loader.version; setLoader(i.loader.type); lvI.value = i.loader.version;
+              renderSource();
+            }) }),
+            el('span', { class: 'desc', text: m ? m.path : 'Ninguno elegido' })),
+          m ? el('div', { class: 'item' }, el('div', { class: 'ico', text: 'M' }),
+            el('div', { class: 'grow' }, el('div', { class: 'name', text: m.info.name }),
+              el('div', { class: 'desc', text: `Minecraft ${m.info.minecraft} · ${loaderLabel(m.info.loader.type)} ${m.info.loader.version} · ${m.info.mods} mods · ${m.info.overrides} archivos de configuración` }))) : null,
+          el('p', { class: 'hint', text: 'Los mods que estén en Modrinth quedan en tu lista con su versión fijada (se descargan al publicar); los demás se guardan como .jar propios. Los .zip de CurseForge no son compatibles: exporta como .mrpack o importa la carpeta.' }));
+      }
+    }
+
+    const body = [
+      el('p', { class: 'sub', text: 'Cada modpack tiene su propio Minecraft, loader, mods y RAM. Aparece en el launcher de tus amigos cuando lo publicas.' }),
+      el('label', { class: 'lbl', text: 'Punto de partida' }), srcSeg, srcBox,
+      el('div', { class: 'grid2' }, el('div', {}, el('label', { class: 'lbl', text: 'Nombre' }), nameI), el('div', {}, el('label', { class: 'lbl', text: 'Id (nombre de carpeta)' }), idI)),
+      el('label', { class: 'lbl', text: 'Descripción' }), descI,
+      el('label', { class: 'lbl', text: 'Loader' }), el('div', { class: 'loaders' }, ...loaderBtns),
+      el('div', { class: 'grid2' },
+        el('div', {}, el('label', { class: 'lbl', text: 'Versión de Minecraft' }), mcI),
+        el('div', {}, el('label', { class: 'lbl', text: 'Versión del loader' }), el('div', { class: 'row nopush' }, lvI, lvBtn))),
+      lvChips,
+      el('div', { class: 'grid2' }, el('div', {}, el('label', { class: 'lbl', text: 'RAM mínima (GB)' }), ramMinI), el('div', {}, el('label', { class: 'lbl', text: 'RAM máxima (GB)' }), ramMaxI)),
+      el('label', { class: 'lbl', text: 'Servidor (opcional · entra directo al abrir el juego)' }), serverI,
+      status,
+    ];
+
+    return new Promise((resolve) => {
+      const d = $('dialog');
+      d.className = 'dialog wide';
+      const cancel = el('button', { class: 'ghost', type: 'button', text: 'Cancelar' });
+      const go = el('button', { class: 'primary', type: 'button', text: 'Crear modpack' });
+      const close = (v) => { S.onLog = null; $('modal').hidden = true; d.className = 'dialog'; resolve(v); };
+      cancel.onclick = () => { if (!st.busy) close(null); };
+      go.onclick = async () => {
+        if (st.busy) return;
+        const gb = (v) => (Number.isInteger(Number(v)) ? `${Number(v)}G` : `${Math.round(Number(v) * 1024)}M`);
+        const spec = {
+          name: nameI.value, id: idI.value, description: descI.value, minecraft: mcI.value,
+          loader: { type: st.loader, version: lvI.value }, ram: { min: gb(ramMinI.value), max: gb(ramMaxI.value) }, server: serverI.value,
+        };
+        const source = { type: st.source, path: st.source === 'folder' ? st.folder : st.source === 'mrpack' && st.mr ? st.mr.path : null };
+        if (st.source === 'folder' && !source.path) { toast('Elige la carpeta de la instancia o cambia a «Empezar vacío».', 'error'); return; }
+        if (st.source === 'mrpack' && !source.path) { toast('Elige el archivo .mrpack o cambia a «Empezar vacío».', 'error'); return; }
+        st.busy = true;
+        go.disabled = cancel.disabled = true;
+        go.replaceChildren(el('span', { class: 'spin' }), ' Creando…');
+        S.onLog = (l) => { const t = String(l).trim(); if (t) status.textContent = t; };
+        try {
+          const r = await call(api.createPack({ spec, source }));
+          close(r);
+          fillPackSelect(r.packs, r.id);
+          hits = [];
+          await refresh();
+          const rep = r.report;
+          if (rep && 'pinned' in rep) toast(`Importado: ${rep.pinned} mods de Modrinth fijados, ${rep.downloaded} archivos descargados y ${rep.overrides} de configuración.`, 'ok', 9000);
+          else if (rep) toast(`Importados ${rep.mods} mods (.jar) y ${rep.files} archivos de configuración.`, 'ok', 9000);
+          (rep ? rep.skipped : []).slice(0, 6).forEach((t) => toast('Omitido: ' + t, 'error', 10000));
+          toast(`Modpack «${spec.name}» creado. Cuando esté listo pulsa Vista previa y Publicar: así aparece en el launcher.`, 'ok', 9000);
+          show(source.type === 'mrpack' ? 'publish' : source.type === 'folder' ? 'files' : 'add');
+        } catch (e) {
+          st.busy = false; go.disabled = cancel.disabled = false; go.textContent = 'Crear modpack'; status.textContent = '';
+          fail(e);
+        }
+      };
+      d.replaceChildren(el('h2', { text: 'Nuevo modpack' }), ...body, el('div', { class: 'row' }, cancel, go));
+      setLoader('neoforge'); renderSource();
+      mcI.value = '1.21.1'; suggestRam();
+      $('modal').hidden = false;
+      $('modal').onclick = (e) => { if (e.target === $('modal') && !st.busy) close(null); };
+      nameI.focus();
+    });
+  }
+
+  async function deletePackFlow() {
+    const id = S.packId;
+    const p = S.packs.find((x) => x.id === id);
+    if (!p) return;
+    const typed = el('input', { type: 'text', placeholder: id, autocomplete: 'off' });
+    const push = el('input', { type: 'checkbox' });
+    push.checked = !!(S.pack && S.pack.git);
+    const r = await modal(`Eliminar «${p.name}»`, [
+      el('p', { class: 'sub', text: `Se borra la carpeta del modpack con todos sus mods y configuraciones, y se quita de la lista del launcher. Escribe el id «${id}» para confirmar.` }),
+      typed,
+      el('label', { class: 'check' }, push, ' Subir el borrado a GitHub ahora'),
+    ], [{ label: 'Cancelar', value: () => null }, { label: 'Eliminar para siempre', primary: true, value: () => (typed.value.trim() === id ? { push: push.checked } : false) }]);
+    if (r === null || r === undefined) return;
+    if (r === false) { toast('El id no coincide: no se borró nada.', 'error'); return; }
+    const out = await call(api.deletePack(id, r));
+    fillPackSelect(out.packs, out.packId);
+    hits = [];
+    if (out.packId) await refresh(); else { S.pack = null; await loadAll(); }
+    show('mods');
+    toast(`Modpack «${p.name}» eliminado${out.pushed ? ' y subido a GitHub' : ' (solo en tu PC)'}.`, 'ok', 8000);
+  }
+
   // ───────── navegación y eventos ─────────
   function show(view) {
     S.view = view;
     document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'v-' + view));
     document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
     if (view === 'add' && !hits.length) guarded(() => doSearch(true));
-    if (view === 'settings') guarded(loadSettings);
+    if (view === 'settings') { guarded(loadSettings); loadMcVersions(); }
   }
 
   async function loadAll() {
     const init = await call(api.init());
-    S.packs = init.packs; S.packId = init.packId; S.repoDir = init.repoDir;
-    $('packSel').replaceChildren(...init.packs.map((id) => el('option', { value: id, text: id })));
-    if (init.packId) $('packSel').value = init.packId;
+    S.repoDir = init.repoDir;
+    fillPackSelect(init.packs, init.packId);
     if (!init.packs.length) {
-      $('modList').replaceChildren(el('div', { class: 'empty' }, 'No encuentro tus modpacks. ', el('button', { class: 'primary', text: 'Elegir carpeta atenas-packs', onclick: chooseRepo })));
+      $('modList').replaceChildren(el('div', { class: 'empty' }, 'No encuentro tus modpacks. ', el('button', { class: 'primary', text: 'Elegir carpeta atenas-packs', onclick: chooseRepo }), ' ', el('button', { class: 'ghost', text: '＋ Crear mi primer modpack', onclick: () => guarded(newPackWizard) })));
       return;
     }
     await refresh();
@@ -366,6 +566,8 @@
   function init() {
     document.querySelectorAll('#nav button').forEach((b) => b.addEventListener('click', () => show(b.dataset.view)));
     $('repoBtn').onclick = () => guarded(chooseRepo);
+    $('newPackBtn').onclick = () => guarded(newPackWizard);
+    $('delPackBtn').onclick = () => guarded(deletePackFlow);
     $('packSel').onchange = () => guarded(async () => { await call(api.selectPack($('packSel').value)); hits = []; await refresh(); });
     $('filter').oninput = () => S.pack && renderMods();
     $('searchForm').onsubmit = (e) => { e.preventDefault(); S.q = $('q').value.trim(); guarded(() => doSearch(true)); };

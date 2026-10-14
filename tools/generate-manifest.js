@@ -63,7 +63,8 @@ function buildManifest(packDir, { baseUrl, note } = {}) {
   if (!fs.existsSync(metaPath)) throw new Error('Falta ' + metaPath);
   const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
   const filesDir = path.join(packDir, 'files');
-  if (!fs.existsSync(filesDir)) throw new Error('Falta la carpeta ' + filesDir);
+  // Git no guarda carpetas vacías: si falta files/, el pack simplemente no lleva archivos todavía
+  if (!fs.existsSync(filesDir)) fs.mkdirSync(filesDir, { recursive: true });
 
   const base = (baseUrl || meta.baseUrl || '').replace(/\/+$/, '');
   if (!base) throw new Error('Falta baseUrl (en pack.json o con --base-url)');

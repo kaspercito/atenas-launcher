@@ -20,16 +20,21 @@ async function root(dir) {
   try { return await git(['rev-parse', '--show-toplevel'], dir, 15000); } catch { return null; }
 }
 
-/** Sube los cambios de la carpeta del pack. Devuelve { committed, pushed }. */
-async function commitAndPush(dir, message, log) {
+/**
+ * Sube los cambios de la carpeta del pack (y de las rutas extra, p. ej. packs.json).
+ * Devuelve { committed, pushed }.
+ */
+async function commitAndPush(dir, message, log, extra = [], { skipDir = false } = {}) {
   const top = await root(dir);
   if (!top) throw new Error('La carpeta del pack no es un repositorio de git. Clona atenas-packs desde GitHub y elige esa carpeta.');
-  await git(['add', '-A', '--', dir], top);
-  const pending = await git(['status', '--porcelain', '--', dir], top);
+  // skipDir: se usa al borrar un pack (la carpeta ya no existe, solo se suben las rutas indicadas)
+  const paths = skipDir ? extra : [dir, ...extra];
+  await git(['add', '-A', '--', ...paths], top);
+  const pending = await git(['status', '--porcelain', '--', ...paths], top);
   let committed = false;
   if (pending) {
     log('git commit…');
-    await git(['commit', '-m', message, '--', dir], top);
+    await git(['commit', '-m', message, '--', ...paths], top);
     committed = true;
   } else {
     log('No hay cambios nuevos que subir.');
@@ -51,6 +56,25 @@ async function commitAndPush(dir, message, log) {
   return { committed, pushed: true };
 }
 
+/** "https://github.com/o/r.git" o "git@github.com:o/r.git" -> { owner, repo } */
+function parseGithubRemote(url) {
+  const m = /github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
+  return m ? { owner: m[1], repo: m[2] } : null;
+}
+
+/** URL base pública (raw.githubusercontent.com/…/rama) del repositorio de la carpeta, o null. */
+async function remoteRaw(dir) {
+  try {
+    const top = await root(dir);
+    if (!top) return null;
+    const gh = parseGithubRemote(await git(['remote', 'get-url', 'origin'], top, 15000));
+    if (!gh) return null;
+    let branch = 'main';
+    try { const b = await git(['rev-parse', '--abbrev-ref', 'HEAD'], top, 15000); if (b && b !== 'HEAD') branch = b; } catch { /* repo sin commits */ }
+    return `https://raw.githubusercontent.com/${gh.owner}/${gh.repo}/${branch}`;
+  } catch { return null; }
+}
+
 async function dirtyCount(dir) {
   const top = await root(dir);
   if (!top) return null;
@@ -58,4 +82,4 @@ async function dirtyCount(dir) {
   return out ? out.split('\n').length : 0;
 }
 
-module.exports = { root, commitAndPush, dirtyCount };
+module.exports = { root, commitAndPush, dirtyCount, remoteRaw, parseGithubRemote };

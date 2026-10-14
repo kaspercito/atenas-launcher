@@ -102,3 +102,23 @@ h1{margin:0;font-size:24px}h3{margin:0 0 12px;display:flex;justify-content:space
 .chips button:hover,.chips button.on{border-color:var(--acc)}
 .hint{color:var(--mut);font-size:13px;margin:16px 0 0}
 code{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+
+/* ───────── varios modpacks: selector, asistente "Nuevo modpack", zona peligrosa ───────── */
+.packbtns{display:flex;gap:6px}
+.packbtns .primary{flex:1}
+.dialog.wide{width:min(760px,94vw);max-height:92vh;overflow:auto}
+.dialog.wide .grid2{margin-top:2px}
+.dialog.wide .row.nopush{margin-top:0}
+.dialog.wide .row{margin-top:14px}
+.dialog.wide .item{margin-top:10px}
+.loaders{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.lcard{display:flex;flex-direction:column;gap:3px;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);border-left:4px solid var(--lc,var(--acc))}
+.lcard small{color:var(--mut);font-size:11px;line-height:1.3}
+.lcard.on{background:#241f46;border-color:var(--lc,var(--acc));box-shadow:0 0 0 1px var(--lc,var(--acc)) inset}
+.ld-neoforge{--lc:#f97316}.ld-forge{--lc:#60a5fa}.ld-fabric{--lc:#d6c7a1}.ld-quilt{--lc:#a78bfa}
+.srcbox{margin:10px 0 4px}
+.srcbox .hint{margin:8px 0 0}
+.wstatus{min-height:20px;margin-top:10px;color:var(--acc2)}
+.dangerzone{margin-top:18px;border-color:#5a2a35}
+.dangerzone h3{color:var(--bad)}
+@media (max-width:900px){.loaders{grid-template-columns:repeat(2,1fr)}}

@@ -523,7 +523,11 @@
     $('optMin').checked = state.settings.minimizeOnPlay !== false;
     $('optFx').checked = state.settings.fx !== false;
     $('optNotify').checked = state.settings.notify !== false;
-    document.querySelectorAll('.theme').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.theme === (state.settings.theme || 'violet'))));
+    $('optFullscreen').checked = state.settings.fullscreen === true;
+    $('optAutoStart').checked = state.settings.autoStart === true;
+    $('optHud').checked = state.settings.hud !== false;
+    $('extraJvm').value = state.settings.extraJvm || '';
+    document.querySelectorAll('.theme').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.theme === (state.settings.theme || 'cyber'))));
     $('appVersion').textContent = `Atenas Launcher ${state.appVersion}`;
   }
   function updateRamLabel() {
@@ -533,7 +537,8 @@
     state.settings = await call(api.setSettings, patch).catch(() => state.settings);
   }
   function applyTheme() {
-    document.documentElement.dataset.theme = state.settings.theme || 'violet';
+    document.documentElement.dataset.theme = state.settings.theme || 'cyber';
+    document.documentElement.dataset.hud = state.settings.hud === false ? 'off' : 'on';
     fx.refreshColors();
   }
   function applyFx() {
@@ -636,6 +641,10 @@
     $('optJvm').addEventListener('change', (e) => patchSettings({ jvmOptimized: e.target.checked }));
     $('optMin').addEventListener('change', (e) => patchSettings({ minimizeOnPlay: e.target.checked }));
     $('optFx').addEventListener('change', async (e) => { await patchSettings({ fx: e.target.checked }); applyFx(); });
+    $('optFullscreen').addEventListener('change', (e) => patchSettings({ fullscreen: e.target.checked }));
+    $('optAutoStart').addEventListener('change', (e) => patchSettings({ autoStart: e.target.checked }));
+    $('optHud').addEventListener('change', async (e) => { await patchSettings({ hud: e.target.checked }); applyTheme(); });
+    $('extraJvm').addEventListener('change', async (e) => { await patchSettings({ extraJvm: e.target.value }); e.target.value = state.settings.extraJvm || ''; toast('Argumentos guardados'); });
     document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
     $('winMin').addEventListener('click', () => api.win.minimize());
     $('winMax').addEventListener('click', () => api.win.maximize());

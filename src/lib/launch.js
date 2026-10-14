@@ -64,7 +64,7 @@ const OPTIMIZED_JVM_ARGS = [
   '-XX:+PerfDisableSharedMem',
 ];
 
-function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb, optimizedJvm = true, hooks = {} }) {
+function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb, optimizedJvm = true, extraJvm = [], fullscreen = false, hooks = {} }) {
   const launcher = new Client();
   const packMax = parseMb(manifest.ram?.max, null);
   const maxMb = ramMb || packMax || 4096;
@@ -80,7 +80,9 @@ function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb
     memory: { max: toMem(maxMb), min: toMem(minMb) },
   };
   const extra = customId ? loaderJvmArgs(instanceDir, customId) : [];
-  const jvm = [...(optimizedJvm ? OPTIMIZED_JVM_ARGS : []), ...extra];
+  const jvm = [...(optimizedJvm ? OPTIMIZED_JVM_ARGS : []), ...extra, ...extraJvm];
+  if (extraJvm.length && hooks.onLog) hooks.onLog(`[Atenas] Argumentos JVM extra: ${extraJvm.join(' ')}`);
+  if (fullscreen) opts.window = { fullscreen: true };
   if (jvm.length) opts.customArgs = jvm;
   if (customId) opts.version.custom = customId;
   if (manifest.server) {

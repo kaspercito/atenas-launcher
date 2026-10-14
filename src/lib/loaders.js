@@ -41,9 +41,24 @@ async function ensureProfileLoader(type, mc, version, instanceDir, log) {
   return writeProfile(instanceDir, profile);
 }
 
-function runInstaller(javaPath, jar, instanceDir, log) {
+/**
+ * Id de versión que deja el instalador y URL del instalador de Forge / NeoForge.
+ * NeoForge 1.20.1 (47.x) se publica como "forge" dentro de net.neoforged; desde 1.20.2 el artefacto se llama "neoforge".
+ */
+function installerCoords(type, mc, version) {
+  if (type === 'forge') {
+    return { id: `${mc}-forge-${version}`, url: `https://maven.minecraftforge.net/net/minecraftforge/forge/${mc}-${version}/forge-${mc}-${version}-installer.jar` };
+  }
+  if (mc === '1.20.1') {
+    const full = `${mc}-${version}`;
+    return { id: `${mc}-forge-${version}`, url: `https://maven.neoforged.net/releases/net/neoforged/forge/${full}/forge-${full}-installer.jar` };
+  }
+  return { id: `neoforge-${version}`, url: `https://maven.neoforged.net/releases/net/neoforged/neoforge/${version}/neoforge-${version}-installer.jar` };
+}
+
+function runInstaller(javaPath, jar, instanceDir, log, flag = '--installClient') {
   return new Promise((resolve, reject) => {
-    const child = execFile(javaPath, ['-jar', jar, '--installClient', instanceDir], {
+    const child = execFile(javaPath, ['-jar', jar, flag, instanceDir], {
       cwd: instanceDir, maxBuffer: 64 * 1024 * 1024, windowsHide: true,
     }, (err, stdout, stderr) => {
       if (err) return reject(new Error('El instalador falló: ' + (stderr || err.message).slice(-400)));
@@ -56,12 +71,8 @@ function runInstaller(javaPath, jar, instanceDir, log) {
 /** Forge / NeoForge: se ejecuta su instalador oficial en modo cliente. */
 async function ensureInstallerLoader(type, mc, version, instanceDir, javaPath, log) {
   if (!version) throw new Error(`Para ${type} indica la versión exacta en loader.version`);
-  const expectedId = type === 'forge' ? `${mc}-forge-${version}` : `neoforge-${version}`;
+  const { id: expectedId, url } = installerCoords(type, mc, version);
   if (profileExists(instanceDir, expectedId)) return expectedId;
-
-  const url = type === 'forge'
-    ? `https://maven.minecraftforge.net/net/minecraftforge/forge/${mc}-${version}/forge-${mc}-${version}-installer.jar`
-    : `https://maven.neoforged.net/releases/net/neoforged/neoforge/${version}/neoforge-${version}-installer.jar`;
 
   log(`Descargando instalador de ${type} ${version}…`);
   const jar = path.join(instanceDir, `.installer-${type}-${version}.jar`);
@@ -73,7 +84,14 @@ async function ensureInstallerLoader(type, mc, version, instanceDir, javaPath, l
 
   const before = new Set(fs.existsSync(versionsDir(instanceDir)) ? fs.readdirSync(versionsDir(instanceDir)) : []);
   log(`Instalando ${type} (puede tardar unos minutos)…`);
-  await runInstaller(javaPath, jar, instanceDir, log);
+  try {
+    await runInstaller(javaPath, jar, instanceDir, log);
+  } catch (e) {
+    // Algunos instaladores de NeoForge usan la opción con guion (--install-client)
+    if (type !== 'neoforge' || !/not a recognized option|unrecognized|unknown option/i.test(e.message)) throw e;
+    log('Reintentando con --install-client…');
+    await runInstaller(javaPath, jar, instanceDir, log, '--install-client');
+  }
   fs.rmSync(jar, { force: true });
 
   if (profileExists(instanceDir, expectedId)) return expectedId;
@@ -102,4 +120,4 @@ async function ensureLoader(manifest, instanceDir, javaPath, log = () => {}) {
   }
 }
 
-module.exports = { ensureLoader };
+module.exports = { ensureLoader, installerCoords };

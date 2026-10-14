@@ -7,6 +7,7 @@
   <title>Atenas Launcher</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="premium.css">
+  <link rel="stylesheet" href="neo.css">
 </head>
 <body>
   <!-- Fondo animado -->
@@ -226,8 +227,33 @@
           </div>
 
           <div class="card">
+            <div class="card-head"><h4>Juego</h4></div>
+            <label class="switch-row">
+              <span>
+                <strong>Iniciar en pantalla completa</strong>
+                <small class="muted">Minecraft arranca a pantalla completa.</small>
+              </span>
+              <input type="checkbox" id="optFullscreen" class="switch">
+            </label>
+            <label class="field" for="extraJvm">
+              <strong>Argumentos de Java extra</strong>
+              <input id="extraJvm" type="text" maxlength="400" placeholder="-Dfml.readTimeout=120" spellcheck="false" autocomplete="off">
+              <small class="muted">Opcional, para usuarios avanzados. Se ignoran la RAM (-Xmx/-Xms) y los agentes (-javaagent).</small>
+            </label>
+          </div>
+
+          <div class="card">
             <div class="card-head"><h4>Apariencia</h4></div>
+            <label class="switch-row">
+              <span>
+                <strong>Efecto HUD</strong>
+                <small class="muted">Líneas de escaneo y marcos tecnológicos sobre la interfaz.</small>
+              </span>
+              <input type="checkbox" id="optHud" class="switch">
+            </label>
             <div class="themes" id="themes" role="radiogroup" aria-label="Tema de color">
+              <button class="theme" data-theme="cyber" role="radio" aria-label="Cian neón" title="Cian neón"></button>
+              <button class="theme" data-theme="nova" role="radio" aria-label="Nova" title="Nova"></button>
               <button class="theme" data-theme="violet" role="radio" aria-label="Violeta" title="Violeta"></button>
               <button class="theme" data-theme="ocean" role="radio" aria-label="Océano" title="Océano"></button>
               <button class="theme" data-theme="emerald" role="radio" aria-label="Esmeralda" title="Esmeralda"></button>
@@ -237,6 +263,13 @@
 
           <div class="card">
             <div class="card-head"><h4>Avisos y mantenimiento</h4></div>
+            <label class="switch-row">
+              <span>
+                <strong>Abrir con Windows</strong>
+                <small class="muted">Inicia el launcher al encender el PC (solo en la versión instalada).</small>
+              </span>
+              <input type="checkbox" id="optAutoStart" class="switch">
+            </label>
             <label class="switch-row">
               <span>
                 <strong>Avisarme de actualizaciones</strong>

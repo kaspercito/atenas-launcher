@@ -1,19 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-<defs>
-<radialGradient id="bg" cx="50%" cy="30%" r="85%"><stop offset="0" stop-color="#5b2bd6"/><stop offset=".5" stop-color="#2a1170"/><stop offset="1" stop-color="#0a0726"/></radialGradient>
-<radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffd86b" stop-opacity=".5"/><stop offset="1" stop-color="#ffd86b" stop-opacity="0"/></radialGradient>
-<linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8cf"/><stop offset=".35" stop-color="#ffd24d"/><stop offset=".75" stop-color="#d98f12"/><stop offset="1" stop-color="#8d560a"/></linearGradient>
-<linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe98a"/><stop offset="1" stop-color="#c98510"/></linearGradient>
-<linearGradient id="gem" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e6fbff"/><stop offset="1" stop-color="#22b8f0"/></linearGradient>
-<linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
-<filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".6"/></filter>
-</defs>
-<rect width="512" height="512" rx="116" fill="url(#bg)"/>
-<circle cx="256" cy="256" r="240" fill="url(#glow)"/>
-<rect width="512" height="512" rx="116" fill="url(#sheen)"/>
-<rect x="5" y="5" width="502" height="502" rx="111" fill="none" stroke="#ffd86b" stroke-opacity=".5" stroke-width="3"/>
-<g filter="url(#sh)" opacity=".95"><ellipse cx="223.7" cy="445.2" rx="8" ry="21" transform="rotate(72.0 223.7 445.2)" fill="url(#leaf)"/><ellipse cx="181.8" cy="432.6" rx="8" ry="21" transform="rotate(85.5 181.8 432.6)" fill="url(#leaf)"/><ellipse cx="144.1" cy="410.5" rx="8" ry="21" transform="rotate(99.0 144.1 410.5)" fill="url(#leaf)"/><ellipse cx="112.5" cy="380.3" rx="8" ry="21" transform="rotate(112.5 112.5 380.3)" fill="url(#leaf)"/><ellipse cx="88.8" cy="343.5" rx="8" ry="21" transform="rotate(126.0 88.8 343.5)" fill="url(#leaf)"/><ellipse cx="74.4" cy="302.3" rx="8" ry="21" transform="rotate(139.5 74.4 302.3)" fill="url(#leaf)"/><ellipse cx="70.0" cy="258.8" rx="8" ry="21" transform="rotate(153.0 70.0 258.8)" fill="url(#leaf)"/><ellipse cx="75.9" cy="215.4" rx="8" ry="21" transform="rotate(166.5 75.9 215.4)" fill="url(#leaf)"/><ellipse cx="91.8" cy="174.7" rx="8" ry="21" transform="rotate(180.0 91.8 174.7)" fill="url(#leaf)"/><ellipse cx="116.7" cy="138.8" rx="8" ry="21" transform="rotate(193.5 116.7 138.8)" fill="url(#leaf)"/><ellipse cx="149.3" cy="109.6" rx="8" ry="21" transform="rotate(207.0 149.3 109.6)" fill="url(#leaf)"/><ellipse cx="288.3" cy="445.2" rx="8" ry="21" transform="rotate(-252.0 288.3 445.2)" fill="url(#leaf)"/><ellipse cx="330.2" cy="432.6" rx="8" ry="21" transform="rotate(-265.5 330.2 432.6)" fill="url(#leaf)"/><ellipse cx="367.9" cy="410.5" rx="8" ry="21" transform="rotate(-279.0 367.9 410.5)" fill="url(#leaf)"/><ellipse cx="399.5" cy="380.3" rx="8" ry="21" transform="rotate(-292.5 399.5 380.3)" fill="url(#leaf)"/><ellipse cx="423.2" cy="343.5" rx="8" ry="21" transform="rotate(-306.0 423.2 343.5)" fill="url(#leaf)"/><ellipse cx="437.6" cy="302.3" rx="8" ry="21" transform="rotate(-319.5 437.6 302.3)" fill="url(#leaf)"/><ellipse cx="442.0" cy="258.8" rx="8" ry="21" transform="rotate(-333.0 442.0 258.8)" fill="url(#leaf)"/><ellipse cx="436.1" cy="215.4" rx="8" ry="21" transform="rotate(-346.5 436.1 215.4)" fill="url(#leaf)"/><ellipse cx="420.2" cy="174.7" rx="8" ry="21" transform="rotate(-360.0 420.2 174.7)" fill="url(#leaf)"/><ellipse cx="395.3" cy="138.8" rx="8" ry="21" transform="rotate(-373.5 395.3 138.8)" fill="url(#leaf)"/><ellipse cx="362.7" cy="109.6" rx="8" ry="21" transform="rotate(-387.0 362.7 109.6)" fill="url(#leaf)"/></g>
-<g transform="translate(256 262) scale(.8) translate(-256 -251)" filter="url(#sh)">
-<path fill="url(#gold)" stroke="#fff2b0" stroke-width="3" fill-rule="evenodd" d="M256 92 L392 410 L336 410 L310 346 L202 346 L176 410 L120 410 Z M256 216 L222 296 L290 296 Z"/>
-<path d="M256 250 L272 268 L256 287 L240 268 Z" fill="url(#gem)" stroke="#fff6c2" stroke-width="2.5"/>
-</g></svg>
+  <defs>
+    <linearGradient id="g" x1="70" y1="60" x2="440" y2="450" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22d3ee"/><stop offset=".5" stop-color="#8b5cf6"/><stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#1b1640"/><stop offset="1" stop-color="#07061a"/>
+    </radialGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="120" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="120" fill="none" stroke="url(#g)" stroke-width="5" opacity=".85"/>
+  <!-- anillo hexagonal con marcas -->
+  <polygon points="256,66 420,161 420,351 256,446 92,351 92,161" fill="none" stroke="url(#g)" stroke-width="16" opacity=".16"/>
+  <polygon points="256,66 420,161 420,351 256,446 92,351 92,161" fill="none" stroke="url(#g)" stroke-width="5" stroke-dasharray="150 40" stroke-linejoin="round"/>
+  <g fill="#67e8f9"><circle cx="256" cy="66" r="8"/><circle cx="420" cy="161" r="6"/><circle cx="420" cy="351" r="6"/><circle cx="256" cy="446" r="8" fill="#f472b6"/><circle cx="92" cy="351" r="6"/><circle cx="92" cy="161" r="6"/></g>
+  <!-- A: frontón del templo -->
+  <path d="M172 366 L256 150 L340 366" fill="none" stroke="url(#g)" stroke-width="44" opacity=".22" stroke-linejoin="miter"/>
+  <path d="M172 366 L256 150 L340 366" fill="none" stroke="url(#g)" stroke-width="30" stroke-linejoin="miter" stroke-miterlimit="6"/>
+  <path d="M256 188 L283 258 H229 Z" fill="#07061a"/>
+  <!-- travesaño flotante + estilóbato -->
+  <rect x="206" y="304" width="100" height="14" rx="3" fill="#e0f2fe"/>
+  <rect x="146" y="388" width="220" height="12" rx="3" fill="url(#g)"/>
+  <rect x="176" y="410" width="160" height="8" rx="3" fill="url(#g)" opacity=".6"/>
+  <circle cx="256" cy="120" r="10" fill="#fff"/><circle cx="256" cy="120" r="20" fill="#22d3ee" opacity=".25"/>
+</svg>

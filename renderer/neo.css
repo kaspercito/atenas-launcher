@@ -1,0 +1,111 @@
+/* Atenas Launcher · capa "Neo-Atenas": HUD neón con identidad clásica (Cinzel + columnas/frontón).
+   Solo estilos: no toca la lógica. Se carga después de styles.css y premium.css. */
+
+/* ───────── paletas ───────── */
+:root {
+  --bg: #050913; --bg-2: #08101f;
+  --text: #e8f1ff; --muted: #8a9bb8;
+  --panel: rgba(110, 190, 255, .045); --panel-hi: rgba(110, 190, 255, .09);
+  --line: rgba(120, 200, 255, .13);
+  --cut: 14px;
+  --acc: 34, 211, 238; --acc-hi: 103, 232, 249; --acc-2: 139, 92, 246; --acc-3: 236, 72, 153;
+  --blob-a: #0e7490; --blob-b: #6d28d9; --blob-c: #be185d;
+}
+:root[data-theme="cyber"] { --acc: 34, 211, 238; --acc-hi: 103, 232, 249; --acc-2: 139, 92, 246; --acc-3: 236, 72, 153; --blob-a: #0e7490; --blob-b: #6d28d9; --blob-c: #be185d; }
+:root[data-theme="nova"] { --acc: 163, 230, 53; --acc-hi: 217, 249, 157; --acc-2: 34, 211, 238; --acc-3: 59, 130, 246; --blob-a: #4d7c0f; --blob-b: #0e7490; --blob-c: #1d4ed8; }
+:root[data-theme="violet"] { --acc: 139, 92, 246; --acc-hi: 167, 139, 250; --acc-2: 192, 38, 211; --acc-3: 236, 72, 153; --blob-a: #6d28d9; --blob-b: #be185d; --blob-c: #0891b2; }
+.theme[data-theme="cyber"] { background: linear-gradient(135deg, #22d3ee, #8b5cf6, #ec4899); }
+.theme[data-theme="nova"] { background: linear-gradient(135deg, #a3e635, #22d3ee, #3b82f6); }
+.theme { border-radius: 8px; }
+
+/* ───────── barra de título y logo ───────── */
+.titlebar { background: linear-gradient(180deg, rgba(5, 9, 19, .9), rgba(5, 9, 19, .55)); }
+.titlebar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--acc), .75), rgba(var(--acc-3), .55), transparent); pointer-events: none; }
+.tb-title { font: 700 11px var(--display); letter-spacing: .3em; text-transform: uppercase; color: rgba(var(--acc-hi), .85); }
+.tb-title .dot { border-radius: 1px; transform: rotate(45deg); }
+
+.logo { display: flex; align-items: center; gap: 12px; padding: 4px 6px 0; }
+.logo img { width: 44px; height: 44px; border-radius: 12px; box-shadow: 0 0 0 1px rgba(var(--acc-hi), .35), 0 0 26px rgba(var(--acc), .4);
+  filter: drop-shadow(0 0 12px rgba(var(--acc), .45)); }
+.logo::after { content: "ATENAS"; font: 700 15px var(--display); letter-spacing: .34em; margin-right: -.34em;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gate-card img { filter: drop-shadow(0 0 24px rgba(var(--acc), .55)); box-shadow: none; border-radius: 26px; }
+.gate-card h2 { text-transform: uppercase; letter-spacing: .12em; }
+
+/* ───────── menú lateral ───────── */
+.rail { position: relative; border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(var(--acc), .06), transparent 45%); }
+.nav-btn { border-radius: 6px; font-weight: 600; letter-spacing: .05em; }
+.nav-btn[aria-current="true"] { background: linear-gradient(90deg, rgba(var(--acc), .24), rgba(var(--acc), 0) 92%);
+  box-shadow: inset 0 0 0 1px rgba(var(--acc-hi), .22); color: rgb(var(--acc-hi)); }
+.nav-btn[aria-current="true"] svg { filter: drop-shadow(0 0 6px rgba(var(--acc), .8)); }
+.account { border-radius: 8px; background: linear-gradient(135deg, rgba(var(--acc), .1), rgba(var(--acc-3), .05)); }
+.avatar { border-radius: 6px; }
+
+/* ───────── paneles tipo HUD ───────── */
+.stat, .card, .mod-card, .server-card, .choice, .progress { border-radius: 8px; position: relative;
+  border-color: rgba(var(--acc-hi), .16);
+  background: linear-gradient(160deg, rgba(var(--acc), .07), rgba(255, 255, 255, .015) 60%); }
+.stat::after, .card::after, .mod-card::after, .server-card::after, .choice::after, .progress::after {
+  content: ""; position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; pointer-events: none;
+  border-right: 2px solid rgba(var(--acc), .85); border-bottom: 2px solid rgba(var(--acc), .85); border-bottom-right-radius: 8px; }
+.card-head h4 { font: 700 11.5px var(--body); letter-spacing: .2em; text-transform: uppercase; color: rgb(var(--acc-hi)); }
+.pill { border-radius: 4px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.view-head h3 { font: 700 22px var(--display); letter-spacing: .14em; text-transform: uppercase; }
+.eyebrow::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 10px; background: rgb(var(--acc));
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); box-shadow: 0 0 10px rgb(var(--acc)); }
+.hero h2 { text-transform: uppercase; letter-spacing: .06em; }
+.stat-k { letter-spacing: .16em; }
+.stat b, .sc-metrics b { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+
+/* ───────── botones, pestañas, chips ───────── */
+.btn { border-radius: 6px; letter-spacing: .03em; }
+.btn.play { --cut: 16px; border-radius: 0; letter-spacing: .06em;
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut))); }
+.btn.play.small { --cut: 9px; }
+.btn.play .play-label { text-transform: uppercase; letter-spacing: .22em; }
+.btn.play.small .play-label { letter-spacing: .12em; }
+.actions-right { filter: drop-shadow(0 6px 18px rgba(var(--acc), .4)); }
+.pack-tab { border-radius: 6px; letter-spacing: .04em; }
+.pack-tab[aria-selected="true"] { box-shadow: 0 0 22px rgba(var(--acc), .35); }
+.chip { border-radius: 6px; }
+.kpill { border-radius: 4px; }
+.kbd { border-radius: 3px; }
+.status { border-radius: 4px; letter-spacing: .04em; }
+
+/* ───────── progreso segmentado ───────── */
+.bar { height: 10px; border-radius: 2px; background: rgba(255, 255, 255, .06); }
+.bar i { border-radius: 0; -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 10px); mask-image: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 10px); }
+.sc-bar { border-radius: 2px; }
+
+/* ───────── controles de ajustes ───────── */
+.switch { width: 46px; height: 24px; border-radius: 4px; border: 1px solid var(--line); background: rgba(255, 255, 255, .06); }
+.switch::after { top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 2px; }
+.switch:checked { border-color: rgba(var(--acc-hi), .5); }
+.switch:checked::after { transform: translateX(22px); }
+input[type="range"] { height: 4px; border-radius: 0; }
+input[type="range"]::-webkit-slider-thumb { width: 16px; height: 16px; border-radius: 2px; transform: rotate(45deg); box-shadow: 0 0 0 3px rgba(var(--acc), .4), 0 0 14px rgba(var(--acc), .6); }
+input[type="range"]::-webkit-slider-thumb:hover { transform: rotate(45deg) scale(1.15); }
+.field { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; margin-top: 4px; border-top: 1px solid var(--line); }
+.field strong { font-weight: 600; font-size: 13.5px; }
+.field input { height: 40px; padding: 0 12px; border-radius: 6px; color: var(--text); user-select: text;
+  background: rgba(0, 0, 0, .35); border: 1px solid var(--line); font: 500 12.5px ui-monospace, Consolas, monospace; }
+.field input:focus { outline: none; border-color: rgba(var(--acc-hi), .7); box-shadow: 0 0 0 3px rgba(var(--acc), .18); }
+.field small { margin-top: 0; }
+
+/* ───────── paleta de comandos y scroll ───────── */
+.pal-box { border-radius: 8px; border-color: rgba(var(--acc-hi), .5); box-shadow: 0 0 70px rgba(var(--acc), .22); }
+.pal li { border-radius: 4px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(var(--acc), .32); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--acc), .55); }
+:focus-visible { outline-color: rgb(var(--acc-hi)); }
+
+/* ───────── efecto HUD (se apaga en Ajustes) ───────── */
+:root:not([data-hud="off"]) body::after { content: ""; position: fixed; inset: 0; z-index: 40; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(180, 230, 255, .03) 0 1px, transparent 1px 3px); }
+:root:not([data-hud="off"]) .stage::before { content: ""; position: absolute; left: 12px; top: 8px; width: 26px; height: 26px; pointer-events: none;
+  border-left: 2px solid rgba(var(--acc), .55); border-top: 2px solid rgba(var(--acc), .55); }
+:root[data-hud="off"] .stat::after, :root[data-hud="off"] .card::after, :root[data-hud="off"] .mod-card::after,
+:root[data-hud="off"] .server-card::after, :root[data-hud="off"] .choice::after, :root[data-hud="off"] .progress::after { display: none; }

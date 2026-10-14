@@ -1,0 +1,23 @@
+/* Pantalla de arranque: ventana sin marco y transparente; solo animaciones CSS. */
+@font-face { font-family: "Cinzel"; font-weight: 700; src: url("../assets/fonts/cinzel-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../assets/fonts/inter-latin-400-normal.woff2") format("woff2"); }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; -webkit-app-region: drag; user-select: none; }
+body { display: grid; place-items: center; font: 400 13px "Inter", system-ui, sans-serif; color: #8a9bb8; }
+.card { position: relative; width: 400px; height: 270px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 14px; border: 1px solid rgba(103, 232, 249, .28);
+  background: radial-gradient(260px 160px at 50% 0%, rgba(34, 211, 238, .16), transparent 70%), linear-gradient(180deg, #0a1124, #050913);
+  box-shadow: 0 0 0 1px rgba(5, 9, 19, .8), 0 0 50px rgba(34, 211, 238, .18); animation: in .5s cubic-bezier(.2, .8, .2, 1) both; }
+.card::before { content: ""; position: absolute; inset: 0; border-radius: 14px; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(180, 230, 255, .03) 0 1px, transparent 1px 3px); }
+.mark { position: relative; width: 120px; height: 120px; display: grid; place-items: center; margin-bottom: 4px; }
+.mark img { filter: drop-shadow(0 0 16px rgba(34, 211, 238, .5)); }
+.ring { position: absolute; inset: 0; animation: spin 2.4s linear infinite; }
+h1 { margin: 0; font: 700 22px "Cinzel", Georgia, serif; letter-spacing: .5em; margin-right: -.5em; color: #e8f1ff; }
+p { margin: 0; letter-spacing: .06em; }
+.bar { width: 200px; height: 4px; margin-top: 14px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.bar i { display: block; width: 40%; height: 100%; background: linear-gradient(90deg, #22d3ee, #8b5cf6, #ec4899); animation: slide 1.3s ease-in-out infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@keyframes in { from { opacity: 0; transform: scale(.96); } }
+@media (prefers-reduced-motion: reduce) { .ring, .bar i { animation-duration: 6s; } }

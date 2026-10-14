@@ -34,10 +34,14 @@ function writeJson(file, data) {
 }
 
 const getSettings = () => ({
-  ramMb: 4096, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, fx: true, notify: true, theme: 'violet',
+  ramMb: 4096, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, fx: true, notify: true, theme: 'cyber',
+  fullscreen: false, extraJvm: '', autoStart: false, hud: true,
   seenNews: {}, playtime: {}, lastPlayed: {},
   ...readJson(settingsFile(), {}),
 });
+// Argumentos JVM extra del jugador: solo banderas simples, sin agentes ni tocar la RAM (eso va aparte).
+const BLOCKED_JVM = /^-(javaagent|agentlib|agentpath|Xmx|Xms|Xbootclasspath)/i;
+const cleanJvm = (s) => String(s || '').slice(0, 400).split(/\s+/).filter((t) => /^-(D[\w.\-]+(=[\w.:+\-\/]*)?|X[\w:=.+\-]+|XX:[+\-]?[\w.]+(=[\w.+\-\/]+)?)$/.test(t) && !BLOCKED_JVM.test(t)).slice(0, 20);
 const setSettings = (patch) => { const s = { ...getSettings(), ...patch }; writeJson(settingsFile(), s); return s; };
 
 // El token de sesión se guarda cifrado con el almacén seguro del sistema (DPAPI en Windows)
@@ -258,6 +262,8 @@ async function play(packId, mclcAuth) {
     customId,
     ramMb: getSettings().ramMb,
     optimizedJvm: getSettings().jvmOptimized,
+    extraJvm: cleanJvm(getSettings().extraJvm),
+    fullscreen: getSettings().fullscreen === true,
     hooks: {
       onLog: gameLog,
       onStarted: () => {
@@ -312,8 +318,10 @@ handle('settings:set', async (patch) => {
   const allowed = {};
   if (Number.isFinite(patch.ramMb)) allowed.ramMb = Math.max(1024, Math.round(patch.ramMb));
   if (typeof patch.selectedPack === 'string' || patch.selectedPack === null) allowed.selectedPack = patch.selectedPack;
-  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
-  if (['violet', 'ocean', 'emerald', 'ember'].includes(patch.theme)) allowed.theme = patch.theme;
+  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
+  if (typeof patch.extraJvm === 'string') allowed.extraJvm = cleanJvm(patch.extraJvm).join(' ');
+  if (['cyber', 'nova', 'violet', 'ocean', 'emerald', 'ember'].includes(patch.theme)) allowed.theme = patch.theme;
+  if ('autoStart' in allowed && app.isPackaged) app.setLoginItemSettings({ openAtLogin: allowed.autoStart });
   if (patch.seenNews && typeof patch.seenNews === 'object') {
     const clean = {};
     for (const [k, v] of Object.entries(patch.seenNews).slice(-200)) if (v === true && k.length < 100) clean[k] = true;
@@ -353,7 +361,26 @@ function startWatcher() {
 }
 
 // ───────────────────────── ventana ─────────────────────────
+// Pantalla de arranque: se muestra mientras carga la ventana principal (mínimo ~1,4 s para que no parpadee).
+let splash = null;
+function showSplash() {
+  try {
+    splash = new BrowserWindow({
+      width: 440, height: 310, frame: false, transparent: true, resizable: false, show: false,
+      alwaysOnTop: true, skipTaskbar: true, center: true, focusable: false,
+      icon: path.join(__dirname, 'assets', 'icon.png'),
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    splash.loadFile(path.join(__dirname, 'renderer', 'splash.html'));
+    splash.once('ready-to-show', () => splash && !splash.isDestroyed() && splash.show());
+    splash.on('closed', () => { splash = null; });
+  } catch { splash = null; }
+}
+function closeSplash() { if (splash && !splash.isDestroyed()) splash.close(); splash = null; }
+
 function createWindow() {
+  const startedAt = Date.now();
+  showSplash();
   win = new BrowserWindow({
     width: 1120,
     height: 700,
@@ -361,7 +388,7 @@ function createWindow() {
     minHeight: 620,
     frame: false,
     show: false,
-    backgroundColor: '#090812',
+    backgroundColor: '#050913',
     title: config.launcherName,
     icon: path.join(__dirname, 'assets', 'icon.png'),
     autoHideMenuBar: true,
@@ -372,7 +399,10 @@ function createWindow() {
       sandbox: true,
     },
   });
-  win.once('ready-to-show', () => win && win.show());
+  win.once('ready-to-show', () => {
+    setTimeout(() => { closeSplash(); if (win && !win.isDestroyed()) win.show(); }, Math.max(0, 1400 - (Date.now() - startedAt)));
+  });
+  setTimeout(closeSplash, 20000); // por si la ventana principal tarda o falla: la pantalla de arranque nunca se queda colgada
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   // Los enlaces externos se abren en el navegador, nunca dentro del launcher
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -380,13 +410,14 @@ function createWindow() {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { win = null; closeSplash(); });
 }
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+  app.setAppUserModelId('com.atenas.launcher'); // agrupa la barra de tareas y habilita las notificaciones de Windows
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
     createWindow();

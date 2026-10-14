@@ -6,25 +6,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Atenas Admin</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="neo.css">
 </head>
 <body>
 <div class="app">
   <aside class="side">
     <div class="brand">
-      <svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#g)"/><path d="M24 9 11 39h6l2.4-6h9.2l2.4 6h6L24 9Zm0 11 3.2 8h-6.4L24 20Z" fill="#fff"/></svg>
+      <img src="../../assets/icon.svg" width="44" height="44" alt="">
       <div><b>Atenas Admin</b><small>Panel del dueño</small></div>
     </div>
 
     <label class="lbl">Modpack</label>
     <select id="packSel"></select>
-    <button class="ghost sm" id="repoBtn">📁 Cambiar carpeta</button>
+    <div class="packbtns">
+      <button class="primary sm" id="newPackBtn" type="button">＋ Nuevo modpack</button>
+      <button class="ghost sm" id="repoBtn" type="button">📁 Carpeta</button>
+    </div>
 
     <nav class="nav" id="nav">
-      <button data-view="mods" class="on">🧩 Mods <span class="count" id="cMods">0</span></button>
-      <button data-view="add">🔎 Añadir mods</button>
-      <button data-view="files">📦 Mis .jar <span class="count" id="cManual">0</span></button>
-      <button data-view="settings">⚙️ Ajustes del pack</button>
-      <button data-view="publish">🚀 Publicar</button>
+      <button data-view="mods" class="on"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.5 4.7v9.6L12 21.5l-8.5-4.7V7.2L12 2.5zM3.8 7.4L12 12l8.2-4.6M12 12v9.2"/></svg>Mods <span class="count" id="cMods">0</span></button>
+      <button data-view="add"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>Añadir mods</button>
+      <button data-view="files"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h16v11a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-11zM3 4.5h18v3H3zM10 12h4"/></svg>Mis .jar <span class="count" id="cManual">0</span></button>
+      <button data-view="settings"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Ajustes del pack</button>
+      <button data-view="publish"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>Publicar</button>
     </nav>
 
     <div class="meta" id="meta"></div>
@@ -75,10 +79,14 @@
         <label class="lbl" for="sName">Nombre del modpack</label>
         <input id="sName" type="text" autocomplete="off">
 
+        <label class="lbl" for="sDesc">Descripción (la ven tus amigos en el launcher)</label>
+        <input id="sDesc" type="text" maxlength="300" placeholder="Ej. Tecnología y magia en NeoForge 1.21.1" autocomplete="off">
+
         <div class="grid2">
           <div>
             <label class="lbl" for="sMc">Versión de Minecraft</label>
-            <input id="sMc" type="text" placeholder="1.20.1" autocomplete="off">
+            <input id="sMc" type="text" list="mcList" placeholder="1.20.1" autocomplete="off">
+            <datalist id="mcList"></datalist>
           </div>
           <div>
             <label class="lbl" for="sLoader">Loader</label>
@@ -114,11 +122,19 @@
         <label class="lbl" for="sServer">Servidor (IP, entra directo al abrir el juego)</label>
         <input id="sServer" type="text" placeholder="atenasmc.live" autocomplete="off">
 
+        <label class="check"><input type="checkbox" id="sListed" checked> Visible en el launcher de mis amigos</label>
+
         <p class="hint">⚠ Si cambias la versión de Minecraft o del loader, revisa con <b>Vista previa</b> que tus mods sigan siendo compatibles antes de publicar.</p>
         <div class="row">
           <button class="ghost" id="sReset" type="button">Deshacer</button>
           <button class="primary big" id="sSave" type="button">💾 Guardar ajustes</button>
         </div>
+      </div>
+
+      <div class="panel form dangerzone">
+        <h3>Zona peligrosa</h3>
+        <p class="sub">Borra este modpack de tu carpeta (y de GitHub si quieres). Desaparece del launcher de tus amigos; lo que ya tienen instalado se queda en sus PCs.</p>
+        <div class="row nopush"><button class="ghost danger" id="delPackBtn" type="button">🗑 Eliminar este modpack…</button></div>
       </div>
     </section>
 
