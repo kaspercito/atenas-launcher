@@ -99,7 +99,14 @@
     const a = state.account;
     $('accName').textContent = a ? a.name : 'Sin sesión';
     $('accKind').textContent = a ? (a.kind === 'offline' ? 'No premium' : 'Microsoft') : '';
-    $('avatar').textContent = a ? a.name.slice(0, 1).toUpperCase() : '?';
+    const av = $('avatar');
+    av.textContent = a ? a.name.slice(0, 1).toUpperCase() : '?';
+    if (a) {
+      const img = new Image();
+      img.alt = '';
+      img.onload = () => av.replaceChildren(img);
+      img.src = 'https://mc-heads.net/avatar/' + encodeURIComponent(a.name) + '/64';
+    }
     $('gate').hidden = !!a;
     if (!a) $('offlineName').focus();
   }
