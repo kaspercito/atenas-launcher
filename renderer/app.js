@@ -102,10 +102,16 @@
     const av = $('avatar');
     av.textContent = a ? a.name.slice(0, 1).toUpperCase() : '?';
     if (a) {
-      const img = new Image();
-      img.alt = '';
-      img.onload = () => av.replaceChildren(img);
-      img.src = 'https://mc-heads.net/avatar/' + encodeURIComponent(a.name) + '/64';
+      const show = (src, onFail) => {
+        const img = new Image();
+        img.alt = '';
+        img.onload = () => av.replaceChildren(img);
+        if (onFail) img.onerror = onFail;
+        img.src = src;
+      };
+      const steve = () => show('steve.png');
+      // Si no se encuentra la skin (no premium, sin internet o servicio caído) se muestra la cara de Steve
+      show('https://mc-heads.net/avatar/' + encodeURIComponent(a.name) + '/64', steve);
     }
     $('gate').hidden = !!a;
     if (!a) $('offlineName').focus();

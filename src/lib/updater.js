@@ -32,7 +32,7 @@ function createUpdater({ app, send, logDir, intervalMin = 30 }) {
     init,
     status: () => ({ ...st, packaged: app.isPackaged }),
     check: async () => { if (!au) return { ...st, state: 'dev' }; try { await au.checkForUpdates(); } catch (e) { push({ state: 'error', error: e.message.slice(0, 200) }); } return { ...st }; },
-    install: () => { if (au && st.state === 'ready') au.quitAndInstall(false, true); },
+    install: () => { if (au && st.state === 'ready') au.quitAndInstall(true, true); },
   };
 }
 module.exports = { createUpdater };
