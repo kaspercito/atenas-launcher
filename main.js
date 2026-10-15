@@ -10,12 +10,19 @@ const { ensureLoader } = require('./src/lib/loaders');
 const { launchGame } = require('./src/lib/launch');
 const { Account } = require('./src/lib/auth');
 const { fetchJson } = require('./src/lib/net');
+const { createUpdater } = require('./src/lib/updater');
+const { DiscordRpc } = require('./src/lib/discord');
+const { cleanName, getPresence, putPresence } = require('./src/lib/friends');
 
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'launcher.config.json'), 'utf8'));
 
 let win = null;
 let busy = false; // actualizando o jugando
 let lastNotifiedVersion = null;
+let updater = null;
+let rpc = null;
+let playing = null; // { pack, startedAt } mientras Minecraft está abierto
+const serverByPack = {};
 
 // ───────────────────────── almacenamiento ─────────────────────────
 const dataDir = () => app.getPath('userData');
@@ -35,7 +42,7 @@ function writeJson(file, data) {
 
 const getSettings = () => ({
   ramMb: 4096, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, fx: true, notify: true, theme: 'cyber',
-  fullscreen: false, extraJvm: '', autoStart: false, hud: true,
+  fullscreen: false, extraJvm: '', autoStart: false, hud: true, discordRpc: true, sharePresence: true, friends: [],
   seenNews: {}, playtime: {}, lastPlayed: {},
   ...readJson(settingsFile(), {}),
 });
@@ -167,7 +174,9 @@ async function checkPack(packId) {
     writeJson(cachedManifestFile(pack.id), manifest);
     diff.localVersion = manifest.packVersion;
   }
-  return { summary: summarize(pack, manifest, diff, offline), manifest, diff, pack };
+  const summary = summarize(pack, manifest, diff, offline);
+  if (summary.server) serverByPack[pack.id] = summary.server;
+  return { summary, manifest, diff, pack };
 }
 
 async function runUpdate(pack, manifest, diff) {
@@ -268,12 +277,15 @@ async function play(packId, mclcAuth) {
       onLog: gameLog,
       onStarted: () => {
         startedAt = Date.now();
+        playing = { pack: manifest.name || pack.name || pack.id, startedAt };
+        setActivity();
         send('game:state', { state: 'running', message: 'Minecraft en ejecución' });
         if (getSettings().minimizeOnPlay && win && !win.isDestroyed()) win.minimize();
       },
       onProgress: (p) => send('game:state', { state: 'preparing', message: `Descargando ${p.type || 'archivos'}… ${p.task}/${p.total}` }),
     },
   });
+  playing = null; setActivity();
   if (startedAt) {
     const cur = getSettings();
     setSettings({
@@ -318,7 +330,7 @@ handle('settings:set', async (patch) => {
   const allowed = {};
   if (Number.isFinite(patch.ramMb)) allowed.ramMb = Math.max(1024, Math.round(patch.ramMb));
   if (typeof patch.selectedPack === 'string' || patch.selectedPack === null) allowed.selectedPack = patch.selectedPack;
-  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
+  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud', 'discordRpc', 'sharePresence']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
   if (typeof patch.extraJvm === 'string') allowed.extraJvm = cleanJvm(patch.extraJvm).join(' ');
   if (['cyber', 'nova', 'violet', 'ocean', 'emerald', 'ember'].includes(patch.theme)) allowed.theme = patch.theme;
   if ('autoStart' in allowed && app.isPackaged) app.setLoginItemSettings({ openAtLogin: allowed.autoStart });
@@ -327,8 +339,65 @@ handle('settings:set', async (patch) => {
     for (const [k, v] of Object.entries(patch.seenNews).slice(-200)) if (v === true && k.length < 100) clean[k] = true;
     allowed.seenNews = clean;
   }
-  return setSettings(allowed);
+  const out = setSettings(allowed);
+  if ('discordRpc' in allowed) { if (allowed.discordRpc) { rpc && rpc.start(); setActivity(); } else rpc && rpc.stop(); }
+  return out;
 });
+
+// ───────────────────────── Discord, amigos y actualizaciones del launcher ─────────────────────────
+function setActivity() {
+  if (!rpc || getSettings().discordRpc === false) return;
+  if (playing) rpc.set({ details: `Jugando ${playing.pack}`, state: 'En Atenas Launcher', startedAt: playing.startedAt });
+  else rpc.set({ details: 'En el launcher', state: 'Preparando la aventura', startedAt: launcherStartedAt });
+}
+const launcherStartedAt = Date.now();
+
+handle('app:updateStatus', async () => (updater ? updater.status() : { state: 'idle', packaged: false }));
+handle('app:updateCheck', async () => updater.check());
+handle('app:updateInstall', async () => { updater.install(); return true; });
+
+handle('friends:list', async () => {
+  const s = getSettings();
+  const names = Array.isArray(s.friends) ? s.friends : [];
+  const server = serverByPack[s.selectedPack];
+  const [ping, pres] = await Promise.all([
+    server ? pingServer(server).catch(() => null) : null,
+    getPresence(config.presenceUrl, names),
+  ]);
+  const inServer = new Set(((ping && ping.players && ping.players.names) || []).map((n) => n.toLowerCase()));
+  const list = names.map((name) => {
+    const p = pres[name.toLowerCase()];
+    const fresh = p && Date.now() - p.ts < 150000;
+    if (inServer.has(name.toLowerCase())) return { name, status: 'server', where: 'En el servidor' };
+    if (fresh && p.playing) return { name, status: 'playing', where: 'Jugando ' + (p.pack || 'Minecraft') };
+    if (fresh) return { name, status: 'online', where: 'En el launcher' };
+    return { name, status: 'offline', where: 'Desconectado' };
+  });
+  return { friends: list, presence: !!config.presenceUrl, serverKnown: !!server };
+});
+handle('friends:add', async (name) => {
+  const n = cleanName(name);
+  const cur = getSettings().friends || [];
+  if (cur.some((f) => f.toLowerCase() === n.toLowerCase())) throw new Error('Ya tienes a ' + n + ' en tu lista.');
+  if (cur.length >= 50) throw new Error('Máximo 50 amigos.');
+  setSettings({ friends: [...cur, n] });
+  return n;
+});
+handle('friends:remove', async (name) => {
+  setSettings({ friends: (getSettings().friends || []).filter((f) => f.toLowerCase() !== String(name).toLowerCase()) });
+  return true;
+});
+
+function startPresenceHeartbeat() {
+  if (!config.presenceUrl) return;
+  const beat = () => {
+    const name = (account.info || {}).name;
+    if (!name || getSettings().sharePresence === false) return;
+    putPresence(config.presenceUrl, { name, pack: playing ? playing.pack : '', playing: !!playing });
+  };
+  setTimeout(beat, 5000);
+  setInterval(beat, 60000).unref?.();
+}
 handle('app:openFolder', async (packId, sub) => {
   const allowedSub = { screenshots: 'screenshots', mods: 'mods' };
   const dir = sub && allowedSub[sub] ? path.join(instanceDir(packId), allowedSub[sub]) : instanceDir(packId);
@@ -422,12 +491,10 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(null);
     createWindow();
     startWatcher();
-    if (app.isPackaged) {
-      try {
-        const { autoUpdater } = require('electron-updater');
-        autoUpdater.checkForUpdatesAndNotify().catch(() => {});
-      } catch {}
-    }
+    updater = createUpdater({ app, send, logDir: dataDir() });
+    updater.init();
+    if (config.discordClientId) { rpc = new DiscordRpc(config.discordClientId); if (getSettings().discordRpc !== false) { rpc.start(); setActivity(); } }
+    startPresenceHeartbeat();
   });
   app.on('window-all-closed', () => app.quit());
 }

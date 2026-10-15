@@ -13,6 +13,12 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      # Si el tag no coincide con la versión de package.json, el launcher instalado NUNCA ve la actualización.
+      - name: Comprobar que el tag coincide con la versión
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$V" ]; then echo "::error::El tag $GITHUB_REF_NAME no coincide con package.json (v$V). Sube la versión en package.json y crea el tag v$V."; exit 1; fi
       # Crea el release ANTES de subir archivos: evita el error 422 already_exists
       # (electron-builder sube el .exe y el .blockmap a la vez y ambos intentan crearlo).
       - name: Crear release si no existe

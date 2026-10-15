@@ -1,0 +1,40 @@
+/* Atenas · extras v1.2: amigos, aviso de actualización y animaciones ligeras (solo transform/opacity). */
+.fr-add{display:flex;gap:8px;align-items:center}
+.fr-add input{width:190px;padding:10px 13px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:inherit;font:inherit;transition:border-color .2s,box-shadow .2s}
+.fr-add input:focus{outline:none;border-color:rgba(var(--acc-hi),.6);box-shadow:0 0 0 3px rgba(var(--acc),.18)}
+.fr-list{flex:1;overflow-y:auto;display:grid;gap:8px;align-content:start;padding:2px 6px 6px 0}
+.fr-row{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line);transition:transform .25s var(--ease),border-color .25s}
+.fr-row:hover{transform:translateX(4px);border-color:var(--line-hi)}
+.fr-head{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font:700 15px var(--display);background:linear-gradient(135deg,rgba(var(--acc),.45),rgba(var(--acc-hi),.25));flex:none}
+.fr-info{flex:1;min-width:0}
+.fr-info strong{display:block;font-weight:600}
+.fr-info span{font-size:12.5px;color:var(--muted)}
+.fr-dot{width:10px;height:10px;border-radius:50%;background:#64748b;flex:none}
+.fr-row[data-s="server"] .fr-dot,.fr-row[data-s="playing"] .fr-dot{background:#34d399;animation:ping 2.2s infinite;box-shadow:0 0 0 0 rgba(52,211,153,.5)}
+.fr-row[data-s="online"] .fr-dot{background:#22d3ee}
+.fr-row[data-s="offline"]{opacity:.62}
+.fr-x{opacity:0;transition:opacity .2s}
+.fr-row:hover .fr-x{opacity:1}
+.fr-note{margin:10px 2px 0;font-size:12px;color:var(--muted)}
+#friendsDot{background:#34d399}
+
+/* aviso de actualización del launcher */
+.upd{position:fixed;z-index:60;right:20px;top:calc(var(--titlebar) + 14px);width:290px;padding:14px 16px;border-radius:16px;background:rgba(18,15,38,.96);border:1px solid rgba(var(--acc-hi),.5);box-shadow:0 18px 50px -14px rgba(0,0,0,.8),0 0 0 1px rgba(var(--acc),.12);backdrop-filter:blur(14px);animation:upd-in .5s var(--ease) both}
+.upd[hidden]{display:none}
+.upd-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px}
+.upd-bar{height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px}
+.upd-bar i{display:block;height:100%;width:100%;transform-origin:left;transform:scaleX(0);background:linear-gradient(90deg,rgb(var(--acc)),rgb(var(--acc-hi)));transition:transform .35s var(--ease)}
+.upd .btn{margin-top:12px;width:100%}
+@keyframes upd-in{from{opacity:0;transform:translateY(-10px) scale(.97)}to{opacity:1;transform:none}}
+
+/* animaciones de entrada: solo al cambiar de pestaña (clase .enter), con retraso escalonado */
+.view.enter :is(.mod-card,.fr-row,.card,.news>*,.pack-tab,.stat){animation:rise .5s var(--ease) both;animation-delay:calc(var(--i,0)*32ms)}
+.nav-btn svg{transition:transform .3s var(--ease)}
+.nav-btn:hover svg{transform:scale(1.14) rotate(-4deg)}
+.nav-btn:active{transform:scale(.97)}
+.btn.play:not(:disabled):hover{transform:translateY(-2px) scale(1.015)}
+.btn.play:not(:disabled):active{transform:scale(.98)}
+.toast{animation:upd-in .4s var(--ease) both}
+
+@media (prefers-reduced-motion:reduce){.view.enter *,.upd,.toast{animation:none!important}.fr-row,.nav-btn svg{transition:none}}
+body.no-fx .view.enter *,body.no-fx .upd{animation:none!important}

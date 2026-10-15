@@ -22,6 +22,13 @@ contextBridge.exposeInMainWorld('atenas', {
   repairPack: (id) => invoke('pack:repair', id),
   serverStatus: (addr) => invoke('server:status', addr),
   openLink: (key) => invoke('app:openLink', key),
+  updateStatus: () => invoke('app:updateStatus'),
+  updateCheck: () => invoke('app:updateCheck'),
+  updateInstall: () => invoke('app:updateInstall'),
+  friends: () => invoke('friends:list'),
+  addFriend: (n) => invoke('friends:add', n),
+  removeFriend: (n) => invoke('friends:remove', n),
+  onAppUpdate: subscribe('app:update'),
   win: {
     minimize: () => ipcRenderer.send('win:minimize'),
     maximize: () => ipcRenderer.send('win:maximize'),

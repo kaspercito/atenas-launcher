@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="premium.css">
   <link rel="stylesheet" href="neo.css">
+  <link rel="stylesheet" href="extras.css">
 </head>
 <body>
   <!-- Fondo animado -->
@@ -41,6 +42,10 @@
         <button class="nav-btn" data-view="news" aria-current="false" title="Novedades">
           <svg viewBox="0 0 24 24"><path d="M5 4.5h11a2 2 0 0 1 2 2V19.5H7a2 2 0 0 1-2-2V4.5zM18 8h2.5v9.5a2 2 0 0 1-2 2M8.5 8.5h6M8.5 12h6M8.5 15.5h4"/></svg><span>Novedades</span>
           <i class="nav-dot" id="newsDot" hidden></i>
+        </button>
+        <button class="nav-btn" data-view="friends" aria-current="false" title="Amigos">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16.5 5.6a3.2 3.2 0 0 1 0 5.8M18 14.3c2 .6 3.5 2.4 3.5 5.2"/></svg><span>Amigos</span>
+          <i class="nav-dot" id="friendsDot" hidden></i>
         </button>
         <button class="nav-btn" data-view="settings" aria-current="false" title="Ajustes">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Ajustes</span>
@@ -183,6 +188,22 @@
       </section>
 
       <!-- ───────── AJUSTES ───────── -->
+      <section class="view" id="view-friends" data-view="friends" hidden>
+        <div class="view-head">
+          <div>
+            <h3>Amigos</h3>
+            <p class="muted" id="frSub">Añade el nick de Minecraft de tus amigos y mira quién está conectado.</p>
+          </div>
+          <form class="fr-add" id="frForm" autocomplete="off">
+            <input id="frName" type="text" maxlength="16" placeholder="Nick de Minecraft" spellcheck="false" aria-label="Nick de tu amigo">
+            <button class="btn soft small" type="submit">Añadir</button>
+          </form>
+        </div>
+        <div class="fr-list" id="frList"></div>
+        <p class="empty-line" id="frEmpty" hidden>Todavía no tienes amigos agregados. Escribe un nick arriba y pulsa Añadir.</p>
+        <p class="fr-note" id="frNote"></p>
+      </section>
+
       <section class="view" id="view-settings" data-view="settings" hidden>
         <div class="view-head">
           <div>
@@ -277,6 +298,24 @@
               </span>
               <input type="checkbox" id="optNotify" class="switch">
             </label>
+            <label class="switch-row">
+              <span>
+                <strong>Discord Rich Presence</strong>
+                <small class="muted" id="rpcHint">Muestra en tu perfil de Discord que usas Atenas Launcher o a qué modpack juegas.</small>
+              </span>
+              <input type="checkbox" id="optRpc" class="switch">
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Mostrar mi estado a mis amigos</strong>
+                <small class="muted">Tus amigos ven si estás en el launcher o jugando.</small>
+              </span>
+              <input type="checkbox" id="optShare" class="switch">
+            </label>
+            <div class="row">
+              <button type="button" class="btn ghost small" id="btnCheckUpd">Buscar actualizaciones del launcher</button>
+              <small class="muted" id="updState"></small>
+            </div>
             <div class="row">
               <button type="button" class="btn ghost small" id="btnRepair2">Reparar instalación</button>
               <button type="button" class="btn ghost small" id="btnFolder2">Abrir carpeta del juego</button>
@@ -322,8 +361,14 @@
     </div>
   </div>
 
+  <div class="upd" id="updBanner" hidden role="status">
+    <div class="upd-top"><b id="updText"></b><button class="icon-mini" id="updClose" aria-label="Cerrar">×</button></div>
+    <div class="upd-bar" id="updBarWrap" hidden><i id="updFill"></i></div>
+    <button class="btn play small" id="updInstall" hidden>Reiniciar y actualizar</button>
+  </div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
   <script src="app.js"></script>
   <script src="premium.js"></script>
+  <script src="extras.js"></script>
 </body>
 </html>
