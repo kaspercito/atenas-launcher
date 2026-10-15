@@ -1,6 +1,6 @@
 'use strict';
 const API = 'https://api.modrinth.com/v2';
-const UA = 'Atenas-Launcher/1.0 (atenas-admin)';
+const UA = 'Atenas-Client/1.0 (atenas-admin)';
 
 async function getJson(url) {
   let res;

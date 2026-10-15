@@ -1,4 +1,4 @@
-# Guía completa · Atenas Launcher
+# Guía completa · Atenas Client
 
 Usas **dos repos públicos** en GitHub (tu usuario: `kaspercito`):
 
@@ -27,7 +27,7 @@ npm install
 npm start                      # pruébalo antes de subir
 git init
 git add .
-git commit -m "Atenas Launcher v1.0.0"
+git commit -m "Atenas Client v1.0.0"
 git branch -M main
 git remote add origin https://github.com/kaspercito/atenas-launcher.git
 git push -u origin main

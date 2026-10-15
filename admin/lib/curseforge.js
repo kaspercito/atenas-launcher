@@ -15,7 +15,7 @@ const API = 'https://api.curseforge.com/v1';
 const GAME = 432;      // Minecraft
 const CLASS_MODS = 6;
 const LOADERS = { forge: 1, fabric: 4, quilt: 5, neoforge: 6 };
-const UA = 'Atenas-Launcher/1.0 (atenas-admin)';
+const UA = 'Atenas-Client/1.0 (atenas-admin)';
 const GI_BEGIN = '# >>> curseforge-sync (no editar)';
 const GI_END = '# <<< curseforge-sync';
 

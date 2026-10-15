@@ -27,7 +27,7 @@
     if (u.state === 'downloading' || u.state === 'ready') {
       if (dismissed && u.state === 'downloading') return;
       banner.hidden = false;
-      $('updText').textContent = u.state === 'ready' ? `Atenas Launcher ${u.version} está lista` : `Descargando la versión ${u.version}…`;
+      $('updText').textContent = u.state === 'ready' ? `Atenas Client ${u.version} está lista` : `Descargando la versión ${u.version}…`;
       $('updBarWrap').hidden = u.state === 'ready';
       $('updFill').style.transform = `scaleX(${(u.percent || 0) / 100})`;
       $('updInstall').hidden = u.state !== 'ready';
@@ -46,10 +46,12 @@
   async function loadExtraSettings() {
     try {
       const init = await call(api.init);
+      $('optTray').checked = init.settings.closeToTray !== false;
       $('optRpc').checked = init.settings.discordRpc !== false;
       $('optShare').checked = init.settings.sharePresence !== false;
     } catch {}
   }
+  $('optTray').addEventListener('change', (e) => api.setSettings({ closeToTray: e.target.checked }));
   $('optRpc').addEventListener('change', (e) => api.setSettings({ discordRpc: e.target.checked }));
   $('optShare').addEventListener('change', (e) => api.setSettings({ sharePresence: e.target.checked }));
 

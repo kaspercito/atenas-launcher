@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Atenas Launcher</title>
+  <title>Atenas Client</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="premium.css">
   <link rel="stylesheet" href="neo.css">
@@ -20,7 +20,7 @@
 
   <!-- Barra de título propia -->
   <header class="titlebar">
-    <div class="tb-title"><span class="dot"></span><span id="tbTitle">Atenas Launcher</span></div>
+    <div class="tb-title"><span class="dot"></span><span id="tbTitle">Atenas Client</span></div>
     <div class="tb-controls">
       <button class="tb-btn" id="winMin" aria-label="Minimizar"><svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg></button>
       <button class="tb-btn" id="winMax" aria-label="Maximizar"><svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/></svg></button>
@@ -300,8 +300,15 @@
             </label>
             <label class="switch-row">
               <span>
+                <strong>Seguir en segundo plano al cerrar</strong>
+                <small class="muted">La X oculta el launcher en la bandeja; para cerrarlo del todo usa el icono de la bandeja.</small>
+              </span>
+              <input type="checkbox" id="optTray" class="switch">
+            </label>
+            <label class="switch-row">
+              <span>
                 <strong>Discord Rich Presence</strong>
-                <small class="muted" id="rpcHint">Muestra en tu perfil de Discord que usas Atenas Launcher o a qué modpack juegas.</small>
+                <small class="muted" id="rpcHint">Muestra en tu perfil de Discord que usas Atenas Client o a qué modpack juegas.</small>
               </span>
               <input type="checkbox" id="optRpc" class="switch">
             </label>

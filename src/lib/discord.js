@@ -42,7 +42,7 @@ class DiscordRpc {
     this.activity = a ? {
       details: String(a.details || '').slice(0, 128), state: a.state ? String(a.state).slice(0, 128) : undefined,
       timestamps: a.startedAt ? { start: Math.floor(a.startedAt / 1000) } : undefined,
-      assets: { large_image: 'icon', large_text: a.largeText || 'Atenas Launcher' },
+      assets: { large_image: 'icon', large_text: a.largeText || 'Atenas Client' },
     } : null;
     this._send();
   }

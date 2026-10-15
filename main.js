@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, shell, safeStorage, Notification, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, Notification, Menu, Tray, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -14,12 +14,17 @@ const { createUpdater } = require('./src/lib/updater');
 const { DiscordRpc } = require('./src/lib/discord');
 const { cleanName, getPresence, putPresence } = require('./src/lib/friends');
 
+// Los datos (modpacks, mundos, ajustes) siguen en la carpeta original aunque cambie el nombre visible del programa
+app.setPath('userData', path.join(app.getPath('appData'), 'Atenas Launcher'));
+
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'launcher.config.json'), 'utf8'));
 
 let win = null;
 let busy = false; // actualizando o jugando
 let lastNotifiedVersion = null;
 let updater = null;
+let tray = null;
+let quitting = false;
 let rpc = null;
 let playing = null; // { pack, startedAt } mientras Minecraft está abierto
 const serverByPack = {};
@@ -42,7 +47,7 @@ function writeJson(file, data) {
 
 const getSettings = () => ({
   ramMb: 4096, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, fx: true, notify: true, theme: 'cyber',
-  fullscreen: false, extraJvm: '', autoStart: false, hud: true, discordRpc: true, sharePresence: true, friends: [],
+  fullscreen: false, extraJvm: '', autoStart: false, hud: true, closeToTray: true, discordRpc: true, sharePresence: true, friends: [],
   seenNews: {}, playtime: {}, lastPlayed: {},
   ...readJson(settingsFile(), {}),
 });
@@ -330,7 +335,7 @@ handle('settings:set', async (patch) => {
   const allowed = {};
   if (Number.isFinite(patch.ramMb)) allowed.ramMb = Math.max(1024, Math.round(patch.ramMb));
   if (typeof patch.selectedPack === 'string' || patch.selectedPack === null) allowed.selectedPack = patch.selectedPack;
-  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud', 'discordRpc', 'sharePresence']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
+  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud', 'closeToTray', 'discordRpc', 'sharePresence']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
   if (typeof patch.extraJvm === 'string') allowed.extraJvm = cleanJvm(patch.extraJvm).join(' ');
   if (['cyber', 'nova', 'violet', 'ocean', 'emerald', 'ember'].includes(patch.theme)) allowed.theme = patch.theme;
   if ('autoStart' in allowed && app.isPackaged) app.setLoginItemSettings({ openAtLogin: allowed.autoStart });
@@ -347,7 +352,7 @@ handle('settings:set', async (patch) => {
 // ───────────────────────── Discord, amigos y actualizaciones del launcher ─────────────────────────
 function setActivity() {
   if (!rpc || getSettings().discordRpc === false) return;
-  if (playing) rpc.set({ details: `Jugando ${playing.pack}`, state: 'En Atenas Launcher', startedAt: playing.startedAt });
+  if (playing) rpc.set({ details: `Jugando ${playing.pack}`, state: 'En Atenas Client', startedAt: playing.startedAt });
   else rpc.set({ details: 'En el launcher', state: 'Preparando la aventura', startedAt: launcherStartedAt });
 }
 const launcherStartedAt = Date.now();
@@ -420,7 +425,7 @@ function startWatcher() {
         send('pack:update-available', summary);
         if (getSettings().notify && win && !win.isFocused() && Notification.isSupported()) {
           new Notification({
-            title: 'Atenas Launcher',
+            title: 'Atenas Client',
             body: `Hay una actualización de mods en ${summary.name} (v${summary.remoteVersion})`,
           }).show();
         }
@@ -479,17 +484,48 @@ function createWindow() {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+  // La X manda el launcher a segundo plano (bandeja) en vez de cerrarlo; se sale desde la bandeja
+  win.on('close', (e) => {
+    if (quitting || getSettings().closeToTray === false) return;
+    e.preventDefault();
+    win.hide();
+    if (!getSettings().trayHint && Notification.isSupported()) {
+      setSettings({ trayHint: true });
+      new Notification({ title: 'Atenas Client', body: 'Sigue abierto en segundo plano. Ciérralo del todo desde el icono de la bandeja.' }).show();
+    }
+  });
   win.on('closed', () => { win = null; closeSplash(); });
+}
+
+function showWindow() {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show(); win.focus();
+}
+function createTray() {
+  try {
+    const img = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png')).resize({ width: 20, height: 20 });
+    tray = new Tray(img);
+    tray.setToolTip(config.launcherName);
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Abrir ' + config.launcherName, click: showWindow },
+      { type: 'separator' },
+      { label: 'Salir del todo', click: () => { quitting = true; app.quit(); } },
+    ]));
+    tray.on('click', showWindow);
+  } catch { tray = null; }
 }
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+  app.on('second-instance', showWindow);
+  app.on('before-quit', () => { quitting = true; }); // también permite que la actualización automática cierre y reinstale
   app.setAppUserModelId('com.atenas.launcher'); // agrupa la barra de tareas y habilita las notificaciones de Windows
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
     createWindow();
+    createTray();
     startWatcher();
     updater = createUpdater({ app, send, logDir: dataDir() });
     updater.init();

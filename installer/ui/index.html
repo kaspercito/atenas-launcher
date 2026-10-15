@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; font-src 'self'; style-src 'self'; script-src 'self'">
+  <title>Atenas Client</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="win" id="win">
+    <div class="bg"><i class="a1"></i><i class="a2"></i><i class="grid"></i></div>
+    <div class="drag"></div>
+    <button class="x" id="x" aria-label="Cerrar">×</button>
+
+    <img class="logo" src="icon.png" alt="" width="104" height="104">
+    <h1>ATENAS</h1>
+    <p class="sub">C L I E N T</p>
+
+    <section id="s-start" class="step">
+      <p class="tag">Modpacks que se instalan solos · Amigos · Discord</p>
+      <button class="cta" id="go">Instalar</button>
+      <small>Se instala solo para tu usuario. No pide permisos de administrador.</small>
+    </section>
+
+    <section id="s-prog" class="step" hidden>
+      <div class="bar"><i id="fill"></i></div>
+      <div class="row"><span id="txt">Preparando…</span><b id="pct">0%</b></div>
+    </section>
+
+    <section id="s-done" class="step" hidden>
+      <p class="ok">¡Atenas Client está instalado!</p>
+      <button class="cta" id="open">Abrir Atenas Client</button>
+    </section>
+
+    <section id="s-err" class="step" hidden>
+      <p class="bad" id="errTxt"></p>
+      <button class="cta" id="retry">Reintentar</button>
+    </section>
+
+    <p class="foot">por kaspercito</p>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

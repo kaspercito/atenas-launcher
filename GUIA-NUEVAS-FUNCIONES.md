@@ -12,7 +12,7 @@
 Solo funciona en el launcher **instalado** (no con `npm start`). Los modpacks se siguen actualizando aparte, cada 5 min.
 
 ## 2. Discord Rich Presence
-1. https://discord.com/developers/applications → New Application (el nombre es lo que se ve: "Atenas Launcher").
+1. https://discord.com/developers/applications → New Application (el nombre es lo que se ve: "Atenas Client").
 2. Copia el **Application ID** a `launcher.config.json` → `"discordClientId"`.
 3. En Rich Presence → Art Assets sube una imagen con el nombre `icon`.
 Se activa/desactiva en Ajustes. Muestra "En el launcher" o "Jugando <modpack>" con el tiempo.
@@ -25,3 +25,9 @@ GitHub solo hospeda archivos estáticos, por eso la presencia en vivo necesita e
 
 ## 4. Instalador
 `build/installer.nsh`: textos de bienvenida y final propios, enlace a GitHub y, al desinstalar a mano, pregunta si borrar también modpacks, mundos y ajustes (las actualizaciones nunca borran nada). Genera el .exe con el tag como siempre.
+
+## 5. Instalador propio (como el de Lunar Client)
+Carpeta `installer/`: una mini-app con interfaz a medida (fondo animado, logo, barra de progreso). Descarga el instalador oficial del último release, lo ejecuta en silencio y abre el launcher. El workflow lo compila y lo sube al release como **`Atenas-Client-Instalador.exe`**.
+Enlace fijo para tus amigos: https://github.com/kaspercito/atenas-launcher/releases/latest/download/Atenas-Client-Instalador.exe
+Para verlo sin publicar: `npm run installer` (necesita que ya exista un release).
+El `Atenas-Client-Setup-x.y.z.exe` sigue en el release porque lo usan el instalador propio y la actualización automática; no lo borres.

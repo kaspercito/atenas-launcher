@@ -20,7 +20,7 @@ const { syncPack } = require('./pack-sync');
 const ROOT = path.resolve(__dirname, '..');
 const CFG_PATH = path.join(ROOT, 'admin.config.json');
 const API = 'https://api.modrinth.com/v2';
-const UA = 'Atenas-Launcher/1.0 (admin)';
+const UA = 'Atenas-Client/1.0 (admin)';
 const HEADER = '# ── Añadidos con Atenas Admin ──────────────────────────────────';
 
 const tty = process.stdout.isTTY;

@@ -1,0 +1,17 @@
+{
+  "name": "atenas-installer",
+  "productName": "Atenas Client Instalador",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "author": "kaspercito",
+  "build": {
+    "appId": "com.atenas.installer",
+    "productName": "Atenas Client Instalador",
+    "electronVersion": "44.7.0",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "ui/**/*"],
+    "win": { "target": "portable", "icon": "icon.ico" },
+    "portable": { "artifactName": "Atenas-Client-Instalador.exe" }
+  }
+}

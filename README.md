@@ -1,4 +1,4 @@
-# Atenas Launcher
+# Atenas Client
 
 Launcher de Minecraft con tus propios modpacks. Tus amigos lo abren, ven si hay mods nuevos y juegan con la configuración que tú elegiste. Todo gratis: el launcher es una app de Electron y los packs viven en un repo público de GitHub.
 
@@ -73,7 +73,7 @@ Límite práctico de GitHub: 100 MB por archivo y repo de menos de 1 GB.
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-GitHub Actions (gratis) construye `Atenas Launcher Setup 1.0.0.exe` y lo publica en *Releases*. Pásales ese enlace. Cuando saques `v1.0.1` el launcher se actualiza solo.
+GitHub Actions (gratis) construye `Atenas Client Setup 1.0.0.exe` y lo publica en *Releases*. Pásales ese enlace. Cuando saques `v1.0.1` el launcher se actualiza solo.
 
 Si prefieres hacerlo en tu PC con Windows: `npm install` y luego `npm run dist`; el instalador queda en `dist/`.
 

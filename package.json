@@ -1,6 +1,6 @@
 {
   "name": "atenas-launcher",
-  "productName": "Atenas Launcher",
+  "productName": "Atenas Client",
   "version": "1.1.2",
   "description": "Launcher de Minecraft con modpacks propios y actualizaciones automáticas de mods",
   "main": "main.js",
@@ -12,7 +12,8 @@
     "manifest": "node tools/generate-manifest.js",
     "dist": "electron-builder --win --publish never",
     "pack": "node tools/pack-sync.js",
-    "admin": "electron admin"
+    "admin": "electron admin",
+    "installer": "electron installer"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
@@ -26,9 +27,9 @@
   },
   "build": {
     "appId": "com.atenas.launcher",
-    "productName": "Atenas Launcher",
+    "productName": "Atenas Client",
     "copyright": "Copyright © 2026 kaspercito",
-    "artifactName": "Atenas-Launcher-Setup-${version}.${ext}",
+    "artifactName": "Atenas-Client-Setup-${version}.${ext}",
     "directories": {
       "buildResources": "build"
     },
@@ -57,7 +58,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "Atenas Launcher",
+      "shortcutName": "Atenas Client",
       "menuCategory": false,
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,

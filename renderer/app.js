@@ -528,7 +528,7 @@
     $('optHud').checked = state.settings.hud !== false;
     $('extraJvm').value = state.settings.extraJvm || '';
     document.querySelectorAll('.theme').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.theme === (state.settings.theme || 'cyber'))));
-    $('appVersion').textContent = `Atenas Launcher ${state.appVersion}`;
+    $('appVersion').textContent = `Atenas Client ${state.appVersion}`;
   }
   function updateRamLabel() {
     $('ramValue').textContent = `${(Number($('ramRange').value) / 1024).toFixed(1)} GB`;
@@ -668,7 +668,7 @@
     state.links = init.links || {};
     state.totalRamMb = init.totalRamMb;
     state.appVersion = init.version;
-    $('tbTitle').textContent = init.launcherName || 'Atenas Launcher';
+    $('tbTitle').textContent = init.launcherName || 'Atenas Client';
     applyFx();
     renderAccount();
 

@@ -29,3 +29,11 @@ jobs:
       - run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Instalador propio (interfaz a medida): descarga el instalador oficial de este release y lo ejecuta en silencio.
+      - name: Construir y subir el instalador propio
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx electron-builder --projectDir installer --win portable --publish never
+          gh release upload "$GITHUB_REF_NAME" installer/dist/Atenas-Client-Instalador.exe --clobber

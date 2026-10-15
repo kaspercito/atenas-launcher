@@ -22,7 +22,7 @@ const crypto = require('crypto');
 const { buildManifest } = require('./generate-manifest');
 
 const API = 'https://api.modrinth.com/v2';
-const UA = 'Atenas-Launcher/1.0 (pack-sync)';
+const UA = 'Atenas-Client/1.0 (pack-sync)';
 const LOCK = 'mods.lock.json';
 const GI_BEGIN = '# >>> pack-sync (no editar)';
 const GI_END = '# <<< pack-sync';
