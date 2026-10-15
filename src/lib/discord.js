@@ -11,7 +11,12 @@ const pipePath = (i) => process.platform === 'win32' ? `\\\\?\\pipe\\discord-ipc
 class DiscordRpc {
   constructor(clientId) { this.id = clientId; this.sock = null; this.ready = false; this.activity = null; this.enabled = false; this.timer = null; this.buf = Buffer.alloc(0); }
   start() { if (!/^\d{15,25}$/.test(String(this.id || ''))) return; this.enabled = true; this._connect(0); }
-  stop() { this.enabled = false; clearTimeout(this.timer); this.ready = false; try { this.sock?.destroy(); } catch {} this.sock = null; }
+  // stop(): borra la actividad en Discord (cierre limpio) antes de cortar la conexión
+  stop() {
+    this.enabled = false; clearTimeout(this.timer);
+    try { if (this.ready && this.sock) this.sock.end(frame(1, { cmd: 'SET_ACTIVITY', args: { pid: process.pid }, nonce: String(Date.now()) })); else this.sock?.destroy(); } catch {}
+    this.ready = false; this.sock = null;
+  }
   _retry() { this.ready = false; if (!this.enabled) return; clearTimeout(this.timer); this.timer = setTimeout(() => this._connect(0), 15000); this.timer.unref?.(); }
   _connect(i) {
     if (!this.enabled || i > 9) return this._retry();
@@ -37,13 +42,17 @@ class DiscordRpc {
     const args = { pid: process.pid, activity: this.activity || undefined };
     this.sock.write(frame(1, { cmd: 'SET_ACTIVITY', args, nonce: String(Date.now()) }));
   }
-  // activity: { details, state, startedAt (ms), largeText }
+  // activity: { details, state, startedAt (ms), largeText, smallImage (URL o clave), smallText (texto al pasar el mouse), buttons: [{ label, url }] }
   set(a) {
-    this.activity = a ? {
+    if (!a) { this.activity = null; return this._send(); }
+    const assets = { large_image: 'icon', large_text: a.largeText || 'Atenas Client' };
+    if (a.smallImage) { assets.small_image = String(a.smallImage).slice(0, 300); if (a.smallText) assets.small_text = String(a.smallText).slice(0, 128); }
+    const buttons = (a.buttons || []).filter((b) => b && b.label && /^https:\/\//.test(b.url || '')).slice(0, 2).map((b) => ({ label: String(b.label).slice(0, 32), url: String(b.url).slice(0, 512) }));
+    this.activity = {
       details: String(a.details || '').slice(0, 128), state: a.state ? String(a.state).slice(0, 128) : undefined,
       timestamps: a.startedAt ? { start: Math.floor(a.startedAt / 1000) } : undefined,
-      assets: { large_image: 'icon', large_text: a.largeText || 'Atenas Client' },
-    } : null;
+      assets, buttons: buttons.length ? buttons : undefined,
+    };
     this._send();
   }
 }

@@ -49,11 +49,13 @@
       const init = await call(api.init);
       $('optTray').checked = init.settings.closeToTray !== false;
       $('optRpc').checked = init.settings.discordRpc !== false;
+      $('optRpcNick').checked = init.settings.discordShowNick !== false;
       $('optShare').checked = init.settings.sharePresence !== false;
     } catch {}
   }
   $('optTray').addEventListener('change', (e) => api.setSettings({ closeToTray: e.target.checked }));
   $('optRpc').addEventListener('change', (e) => api.setSettings({ discordRpc: e.target.checked }));
+  $('optRpcNick').addEventListener('change', (e) => api.setSettings({ discordShowNick: e.target.checked }));
   $('optShare').addEventListener('change', (e) => api.setSettings({ sharePresence: e.target.checked }));
 
   // ───── amigos ─────

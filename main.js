@@ -48,7 +48,7 @@ function writeJson(file, data) {
 
 const getSettings = () => ({
   ramMb: 4096, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, fx: true, notify: true, theme: 'cyber',
-  fullscreen: false, extraJvm: '', autoStart: false, hud: true, closeToTray: true, discordRpc: true, sharePresence: true, friends: [],
+  fullscreen: false, extraJvm: '', autoStart: false, hud: true, closeToTray: true, discordRpc: true, discordShowNick: true, sharePresence: true, friends: [],
   seenNews: {}, playtime: {}, lastPlayed: {},
   ...readJson(settingsFile(), {}),
 });
@@ -329,14 +329,14 @@ handle('app:openLink', async (key) => {
   return true;
 });
 
-handle('auth:login', async () => account.login());
-handle('auth:offline', async (name) => account.loginOffline(name));
-handle('auth:logout', async () => { account.logout(); return true; });
+handle('auth:login', async () => { const r = await account.login(); setActivity(); return r; });
+handle('auth:offline', async (name) => { const r = account.loginOffline(name); setActivity(); return r; });
+handle('auth:logout', async () => { account.logout(); setActivity(); return true; });
 handle('settings:set', async (patch) => {
   const allowed = {};
   if (Number.isFinite(patch.ramMb)) allowed.ramMb = Math.max(1024, Math.round(patch.ramMb));
   if (typeof patch.selectedPack === 'string' || patch.selectedPack === null) allowed.selectedPack = patch.selectedPack;
-  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud', 'closeToTray', 'discordRpc', 'sharePresence']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
+  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud', 'closeToTray', 'discordRpc', 'discordShowNick', 'sharePresence']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
   if (typeof patch.extraJvm === 'string') allowed.extraJvm = cleanJvm(patch.extraJvm).join(' ');
   if (['cyber', 'nova', 'violet', 'ocean', 'emerald', 'ember'].includes(patch.theme)) allowed.theme = patch.theme;
   if ('autoStart' in allowed && app.isPackaged) app.setLoginItemSettings({ openAtLogin: allowed.autoStart });
@@ -347,14 +347,20 @@ handle('settings:set', async (patch) => {
   }
   const out = setSettings(allowed);
   if ('discordRpc' in allowed) { if (allowed.discordRpc) { rpc && rpc.start(); setActivity(); } else rpc && rpc.stop(); }
+  else if ('discordShowNick' in allowed) setActivity();
   return out;
 });
 
 // ───────────────────────── Discord, amigos y actualizaciones del launcher ─────────────────────────
 function setActivity() {
   if (!rpc || getSettings().discordRpc === false) return;
-  if (playing) rpc.set({ details: `Jugando ${playing.pack}`, state: 'En Atenas Client', startedAt: playing.startedAt });
-  else rpc.set({ details: 'En el launcher', state: 'Preparando la aventura', startedAt: launcherStartedAt });
+  // Burbuja pequeña sobre el logo con la cara del jugador; al pasar el mouse sale su nick.
+  const nick = (account.info || {}).name;
+  const who = nick && getSettings().discordShowNick !== false
+    ? { smallImage: 'https://mc-heads.net/avatar/' + encodeURIComponent(nick) + '/128', smallText: nick }
+    : {};
+  if (playing) rpc.set({ details: `Jugando ${playing.pack}`, state: 'En Atenas Client', startedAt: playing.startedAt, ...who });
+  else rpc.set({ details: 'En el launcher', state: 'Preparando la aventura', startedAt: launcherStartedAt, ...who });
 }
 const launcherStartedAt = Date.now();
 
@@ -521,7 +527,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', showWindow);
-  app.on('before-quit', () => { quitting = true; }); // también permite que la actualización automática cierre y reinstale
+  app.on('before-quit', () => { quitting = true; try { rpc && rpc.stop(); } catch {} }); // también permite que la actualización automática cierre y reinstale
   app.setAppUserModelId('com.atenas.launcher'); // agrupa la barra de tareas y habilita las notificaciones de Windows
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
