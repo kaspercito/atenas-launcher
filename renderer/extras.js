@@ -81,7 +81,7 @@
       const on = list.filter((f) => f.status !== 'offline').length;
       $('friendsDot').hidden = on === 0;
       $('frSub').textContent = list.length ? `${on} de ${list.length} conectados` : 'Añade el nick de Minecraft de tus amigos y mira quién está conectado.';
-      $('frNote').textContent = d.presence ? '' : 'Ahora solo se detecta quién está dentro del servidor (el ping muestra hasta 12 jugadores). Para ver "Jugando…" activa el servicio de presencia (GUIA-NUEVAS-FUNCIONES.md).';
+      $('frNote').textContent = d.presence ? '' : 'Ahora solo se detecta quién está dentro del servidor (el ping muestra hasta 12 jugadores). Para ver "Jugando…" activa el servicio de presencia.';
     } catch (e) { toast(e.message, true); }
   }
   function startFriends() { loadFriends(); clearInterval(timer); timer = setInterval(() => !document.hidden && loadFriends(), 45000); }
