@@ -25,6 +25,7 @@
     const txt = { checking: '', latest: 'Tienes la última versión', error: 'No se pudo comprobar: ' + (u.error || ''), dev: 'Solo funciona en la versión instalada', idle: '' }[u.state];
     if ($('updState')) $('updState').textContent = txt || (u.state === 'downloading' ? `Descargando ${u.percent}%` : u.state === 'ready' ? 'Lista para instalar' : 'Buscando…');
     if (u.state === 'downloading' || u.state === 'ready') {
+      if (u.win) { banner.hidden = true; return; } // la ventana de actualización ya está abierta
       if (dismissed && u.state === 'downloading') return;
       banner.hidden = false;
       $('updText').textContent = u.state === 'ready' ? `Atenas Client ${u.version} está lista` : `Descargando la versión ${u.version}…`;

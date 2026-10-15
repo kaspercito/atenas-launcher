@@ -1,7 +1,7 @@
 {
   "name": "atenas-launcher",
   "productName": "Atenas Client",
-  "version": "1.1.4",
+  "version": "1.1.6",
   "description": "Launcher de Minecraft con modpacks propios y actualizaciones automáticas de mods",
   "main": "main.js",
   "author": "kaspercito",
@@ -53,9 +53,8 @@
       "icon": "build/icon.ico"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "Atenas Client",
@@ -63,7 +62,6 @@
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
       "language": "3082",
-      "license": "build/license.txt",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerSidebar": "build/installerSidebar.bmp",

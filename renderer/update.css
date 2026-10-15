@@ -1,0 +1,73 @@
+/* Ventana de actualización de Atenas Client: mismo lenguaje visual que el splash y el instalador. */
+@font-face { font-family: "Cinzel"; font-weight: 700; src: url("../assets/fonts/cinzel-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../assets/fonts/inter-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("../assets/fonts/inter-latin-600-normal.woff2") format("woff2"); }
+:root { --acc: 139, 92, 246; --cy: 34, 211, 238; --ok: 52, 211, 153; --bad: 255, 107, 129; --ease: cubic-bezier(.2, .8, .2, 1); }
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; background: transparent; overflow: hidden; user-select: none; font: 400 13px "Inter", system-ui, sans-serif; color: #8a9bb8; }
+body { display: grid; place-items: center; }
+
+.card { position: relative; width: 480px; height: 492px; overflow: hidden; border-radius: 18px; display: flex; flex-direction: column; align-items: center; padding-top: 38px;
+  border: 1px solid rgba(103, 232, 249, .28); background: linear-gradient(180deg, #0a1124, #050913);
+  box-shadow: 0 0 0 1px rgba(5, 9, 19, .8), 0 0 60px rgba(var(--cy), .18), 0 24px 60px rgba(0, 0, 0, .55); animation: in .5s var(--ease) both; }
+.card::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(180, 230, 255, .03) 0 1px, transparent 1px 3px); }
+.card > * { flex-shrink: 0; }
+.glow { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(300px 190px at 50% 0%, rgba(var(--cy), .18), transparent 70%), radial-gradient(260px 160px at 50% 110%, rgba(var(--acc), .22), transparent 70%); transition: opacity .6s; }
+/* friso griego (meandro) del launcher */
+.meander { position: absolute; top: 0; left: 0; right: 0; height: 16px; opacity: .55; background: url("../assets/meander.svg") repeat-x center / auto 16px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent); }
+.drag { position: absolute; inset: 0 0 auto 0; height: 44px; -webkit-app-region: drag; }
+.x { position: absolute; top: 14px; right: 12px; width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #7f8db0; font-size: 19px; cursor: pointer; z-index: 3; -webkit-app-region: no-drag; transition: background .2s, color .2s; }
+.x:hover { background: rgba(255, 80, 100, .85); color: #fff; }
+
+/* aro de progreso alrededor del logo */
+.mark { position: relative; width: 160px; height: 160px; display: grid; place-items: center; }
+.ring { position: absolute; inset: 0; overflow: visible; }
+.track { fill: none; stroke: rgba(120, 200, 255, .13); stroke-width: 3; }
+.val { fill: none; stroke: url(#g); stroke-width: 5; stroke-linecap: round; transition: stroke-dasharray .35s linear; filter: drop-shadow(0 0 8px rgba(var(--acc), .8)); }
+.logo { position: relative; filter: drop-shadow(0 0 18px rgba(var(--cy), .5)); animation: float 5s ease-in-out infinite; transition: opacity .35s, transform .5s var(--ease); }
+.check { position: absolute; width: 74px; height: 74px; fill: none; stroke: rgb(var(--ok)); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transform: scale(.6);
+  stroke-dasharray: 30; stroke-dashoffset: 30; filter: drop-shadow(0 0 10px rgba(var(--ok), .8)); }
+
+.eyebrow { position: relative; margin-top: 14px; font-size: 10.5px; letter-spacing: .32em; margin-right: -.32em; color: rgb(var(--cy)); }
+h1 { position: relative; margin-top: 6px; font: 700 21px "Cinzel", Georgia, serif; letter-spacing: .12em; color: #e8f1ff; text-shadow: 0 0 26px rgba(var(--acc), .65); text-align: center; }
+.ver { position: relative; margin-top: 10px; display: flex; align-items: center; gap: 9px; font: 600 12px "Inter", sans-serif; font-variant-numeric: tabular-nums; }
+.ver span { padding: 3px 10px; border-radius: 99px; background: rgba(255, 255, 255, .06); color: #9fb0d0; }
+.ver i { font-style: normal; color: #5d6b92; }
+.ver b { padding: 3px 10px; border-radius: 99px; color: #fff; background: linear-gradient(135deg, rgba(var(--acc), .85), rgba(var(--cy), .6)); box-shadow: 0 0 16px rgba(var(--acc), .45); }
+.status { position: relative; margin-top: 14px; min-height: 42px; padding: 0 40px; text-align: center; line-height: 1.45; letter-spacing: .02em; animation: fade .5s both; }
+.meta { position: relative; margin-top: 8px; display: flex; gap: 14px; align-items: baseline; font-variant-numeric: tabular-nums; }
+.meta b { color: #fff; font-weight: 600; font-size: 15px; }
+.meta span { color: #6f7fa6; font-size: 12px; }
+
+.actions { position: relative; margin-top: 6px; display: flex; flex-direction: column; align-items: center; gap: 9px; animation: rise .5s var(--ease) both; }
+.actions[hidden], .meta[hidden] { display: flex; visibility: hidden; } /* reservan su sitio para que nada salte entre estados */
+.cta { position: relative; overflow: hidden; min-width: 240px; padding: 12px 26px; border: 0; border-radius: 12px; cursor: pointer; color: #fff; font: 600 14px "Inter", sans-serif;
+  background: linear-gradient(135deg, rgb(var(--acc)), #5b6cf6); box-shadow: 0 12px 30px -8px rgba(var(--acc), .85); transition: transform .25s var(--ease), box-shadow .25s; }
+.cta:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 16px 38px -6px rgba(var(--acc), .95); }
+.cta:active { transform: scale(.97); }
+.cta::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%); transform: translateX(-120%); animation: sheen 3.2s ease-in-out infinite; }
+.ghost { border: 0; background: transparent; color: #7f8db0; font: 400 12px "Inter", sans-serif; cursor: pointer; padding: 4px 10px; border-radius: 6px; transition: color .2s; }
+.ghost:hover { color: #cfe0ff; }
+.foot { position: absolute; bottom: 11px; font-size: 10.5px; letter-spacing: .08em; color: #4b5780; }
+
+/* estados */
+.card[data-state="downloading"] .ring.wait { animation: spin 1.6s linear infinite; }
+.card[data-state="ready"] .glow { background: radial-gradient(300px 190px at 50% 0%, rgba(var(--ok), .2), transparent 70%), radial-gradient(260px 160px at 50% 110%, rgba(var(--cy), .2), transparent 70%); }
+.card[data-state="ready"] .val { stroke: rgb(var(--ok)); filter: drop-shadow(0 0 10px rgba(var(--ok), .85)); }
+.card[data-state="ready"] .logo { opacity: 0; transform: scale(.8); animation: none; }
+.card[data-state="ready"] .check { opacity: 1; transform: none; stroke-dashoffset: 0; transition: opacity .3s .15s, transform .5s .15s var(--ease), stroke-dashoffset .6s .25s ease-out; }
+.card[data-state="ready"] .eyebrow { color: rgb(var(--ok)); }
+.card[data-state="installing"] .ring { animation: spin 1.4s linear infinite; }
+.card[data-state="installing"] .val { stroke-dasharray: 28 72 !important; }
+.card[data-state="error"] .val { stroke: rgb(var(--bad)); filter: drop-shadow(0 0 8px rgba(var(--bad), .7)); }
+.card[data-state="error"] .eyebrow { color: rgb(var(--bad)); }
+.card[data-state="error"] .status { color: #ff9fb0; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes float { 50% { transform: translateY(-5px); } }
+@keyframes sheen { 0%, 55% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 6s !important; transition: none !important; } }

@@ -11,6 +11,7 @@ const { launchGame } = require('./src/lib/launch');
 const { Account } = require('./src/lib/auth');
 const { fetchJson } = require('./src/lib/net');
 const { createUpdater } = require('./src/lib/updater');
+const { createUpdateWindow } = require('./src/lib/updatewin');
 const { DiscordRpc } = require('./src/lib/discord');
 const { cleanName, getPresence, putPresence } = require('./src/lib/friends');
 
@@ -527,8 +528,10 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     createTray();
     startWatcher();
-    updater = createUpdater({ app, send, logDir: dataDir() });
-    updater.init();
+    // ventana propia de actualización (renderer/update.html); ATENAS_UPDATE_PREVIEW=1 npm start la simula en desarrollo
+    const updWin = createUpdateWindow({ root: __dirname, install: () => updater.install(), retry: () => updater.check() });
+    updater = createUpdater({ app, send: (ch, p) => send(ch, ch === 'app:update' ? { ...p, win: !!updWin.isOpen() } : p), logDir: dataDir(), onState: updWin.onState });
+    if (!updater.init() && process.env.ATENAS_UPDATE_PREVIEW) updWin.preview();
     if (config.discordClientId) { rpc = new DiscordRpc(config.discordClientId); if (getSettings().discordRpc !== false) { rpc.start(); setActivity(); } }
     startPresenceHeartbeat();
   });
