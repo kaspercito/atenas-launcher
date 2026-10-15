@@ -1,4 +1,4 @@
-# Novedades v1.2.0
+# Novedades v1.1.2
 
 ## 1. Actualización automática del launcher (arreglada)
 **Qué fallaba:** solo se comprobaba una vez al abrir, sin avisos y los errores se ocultaban. Además, si el tag de GitHub no coincide con la `version` de `package.json`, el launcher instalado nunca ve la versión nueva.
@@ -6,8 +6,8 @@
 **Ahora:** comprueba al abrir y cada 30 min, muestra un aviso con barra de descarga y botón **Reiniciar y actualizar**, y hay un botón en Ajustes → *Buscar actualizaciones*. Los errores quedan en `%APPDATA%\Atenas Launcher\updater.log`. El workflow falla si el tag no coincide con la versión.
 
 **Para publicar una versión nueva:**
-1. Sube `version` en `package.json` (ej. `1.2.1`).
-2. `git commit -am "v1.2.1"` · `git tag v1.2.1` · `git push && git push --tags`
+1. Sube `version` en `package.json` (ej. `1.1.3`).
+2. `git commit -am "v1.1.3"` · `git tag v1.1.3` · `git push && git push --tags`
 3. Espera a que Actions termine y deja el release **publicado** (no borrador). El repo debe ser **público**.
 Solo funciona en el launcher **instalado** (no con `npm start`). Los modpacks se siguen actualizando aparte, cada 5 min.
 

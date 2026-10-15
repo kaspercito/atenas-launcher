@@ -1,6 +1,15 @@
 ; Instalador personalizado de Atenas Launcher (electron-builder incluye este archivo automáticamente)
 !macro customHeader
   BrandingText "Atenas Launcher  ·  por kaspercito"
+  ; Colores del launcher: encabezado, bienvenida y final oscuros; barra de progreso morada
+  !ifndef MUI_BGCOLOR
+    !define MUI_BGCOLOR "0A0E1A"
+  !endif
+  !ifndef MUI_TEXTCOLOR
+    !define MUI_TEXTCOLOR "FFFFFF"
+  !endif
+  InstallColors 8B5CF6 0A0E1A
+  InstProgressFlags smooth colored
   !ifndef MUI_WELCOMEPAGE_TITLE
     !define MUI_WELCOMEPAGE_TITLE "Bienvenido a Atenas Launcher"
   !endif
@@ -20,6 +29,17 @@
 !macroend
 
 ; Al desinstalar (a mano) pregunta si borrar también modpacks, mundos y ajustes. En silencio (actualizaciones) NO borra nada.
+; Textos propios en la pantalla de instalación
+!macro customInstall
+  Push $0
+  GetDlgItem $0 $HWNDPARENT 1037
+  SendMessage $0 0xC 0 "STR:Instalando Atenas Launcher"
+  GetDlgItem $0 $HWNDPARENT 1038
+  SendMessage $0 0xC 0 "STR:Preparando tus modpacks, amigos y Discord Rich Presence…"
+  DetailPrint "Atenas Launcher listo. ¡Nos vemos en el servidor!"
+  Pop $0
+!macroend
+
 !macro customUnInstall
   MessageBox MB_YESNO|MB_ICONQUESTION "¿Quieres borrar también tus modpacks, mundos y ajustes de Atenas Launcher?$\r$\n$\r$\nElige No para conservarlos." /SD IDNO IDNO +2
   RMDir /r "$APPDATA\${APP_FILENAME}"
