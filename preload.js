@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('atenas', {
   addFriend: (n) => invoke('friends:add', n),
   removeFriend: (n) => invoke('friends:remove', n),
   onAppUpdate: subscribe('app:update'),
+  onFriends: subscribe('friends:summary'),
   win: {
     minimize: () => ipcRenderer.send('win:minimize'),
     maximize: () => ipcRenderer.send('win:maximize'),

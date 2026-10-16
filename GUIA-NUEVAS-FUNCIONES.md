@@ -1,3 +1,22 @@
+# Novedades v1.2.0 · Amigos
+
+**Qué cambia en la pestaña Amigos**
+- Ves la **cara** de cada amigo, quién está **en el servidor**, **jugando <modpack>** o **en el launcher**.
+- **Aviso de Windows** cuando un amigo se conecta (se puede apagar en Ajustes → *Avisarme cuando un amigo se conecte*). El punto verde de la pestaña se actualiza solo, aunque no la tengas abierta.
+- Tu estado se actualiza al instante al entrar a jugar o cerrar el juego, y desaparece al salir del todo (bandeja → *Salir del todo*).
+- Si el servicio de presencia no responde, el launcher lo dice en vez de marcar a todos como desconectados.
+- No puedes añadirte a ti mismo.
+
+**Arreglos de fondo (presencia)**
+- Antes, si el reloj del PC de un amigo estaba mal, todos aparecían desconectados. Ahora la antigüedad la calcula el servicio.
+- Antes cada launcher escribía cada minuto en el KV gratis de Cloudflare (límite 1000 escrituras/día) y se agotaba con pocos amigos. Ahora solo escribe cuando cambia el estado o cada ~200 s.
+
+**Qué tienes que hacer tú (una vez):** el servicio de presencia hay que activarlo en Cloudflare y poner su URL en `launcher.config.json` → `"presenceUrl"`. Guía de 5 minutos: `presence/LEEME.md`. Si ya lo tenías activado, **vuelve a pegar el nuevo `docs/presence-worker.js`** en tu Worker (el anterior sigue funcionando pero con los problemas de arriba). Sin presencia, los amigos solo se ven cuando están dentro del servidor.
+
+**Para publicar v1.2.0:** `git add -A` · `git commit -m "v1.2.0"` · `git tag v1.2.0` · `git push && git push --tags`. La versión de `package.json` ya es 1.2.0 y debe coincidir con el tag.
+
+---
+
 # Novedades v1.1.2
 
 ## 1. Actualización automática del launcher (arreglada)

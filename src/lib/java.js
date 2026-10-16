@@ -76,18 +76,23 @@ async function ensureJava(major, runtimeDir, log = () => {}, onProgress = () => 
     onBytes: (n) => { total += n; onProgress(total); },
   });
 
-  fs.rmSync(target, { recursive: true, force: true });
-  fs.mkdirSync(target, { recursive: true });
+  // Se extrae a una carpeta temporal y se renombra al final: si se cierra el launcher a mitad, no queda un Java a medias
+  // que la próxima vez se tome por bueno (y el juego no arranque).
+  const tmp = target + '.tmp';
+  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.mkdirSync(tmp, { recursive: true });
   if (isWin) {
     const AdmZip = require('adm-zip');
-    new AdmZip(archive).extractAllTo(target, true);
+    new AdmZip(archive).extractAllTo(tmp, true);
   } else {
-    execFileSync('tar', ['-xzf', archive, '-C', target]);
+    execFileSync('tar', ['-xzf', archive, '-C', tmp]);
   }
   fs.rmSync(archive, { force: true });
+  if (!findBinary(tmp)) { fs.rmSync(tmp, { recursive: true, force: true }); throw new Error(`No se encontró Java ${major} tras descomprimir`); }
+  fs.rmSync(target, { recursive: true, force: true });
+  fs.renameSync(tmp, target);
 
   const bin = findBinary(target);
-  if (!bin) throw new Error(`No se encontró Java ${major} tras descomprimir`);
   if (!isWin) fs.chmodSync(bin, 0o755);
   log(`Java ${major} listo`);
   return bin;

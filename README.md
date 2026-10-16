@@ -3,6 +3,7 @@
 Launcher de Minecraft con tus propios modpacks. Tus amigos lo abren, ven si hay mods nuevos y juegan con la configuración que tú elegiste. Todo gratis: el launcher es una app de Electron y los packs viven en un repo público de GitHub.
 
 **Qué hace**
+- Amigos: quién está en el servidor, jugando o en el launcher, con aviso cuando se conectan (presencia opcional: `presence/LEEME.md`).
 - Estado del servidor en vivo (jugadores, ping, MOTD) y botón para copiar la IP.
 - Temas de color, tiempo jugado, reparar instalación, acceso a capturas, enlaces a Discord/Web (se configuran en `launcher.config.json` → `links`).
 - Cuentas premium (Microsoft) y no premium (solo un nombre, sin conexión).

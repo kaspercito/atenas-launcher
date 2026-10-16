@@ -13,7 +13,7 @@ const { fetchJson } = require('./src/lib/net');
 const { createUpdater } = require('./src/lib/updater');
 const { createUpdateWindow } = require('./src/lib/updatewin');
 const { DiscordRpc } = require('./src/lib/discord');
-const { cleanName, getPresence, putPresence } = require('./src/lib/friends');
+const { cleanName, getPresence, putPresence, buildFriendList, HEARTBEAT_MS } = require('./src/lib/friends');
 
 // Los datos (modpacks, mundos, ajustes) siguen en la carpeta original aunque cambie el nombre visible del programa
 app.setPath('userData', path.join(app.getPath('appData'), 'Atenas Launcher'));
@@ -27,6 +27,7 @@ let updater = null;
 let tray = null;
 let quitting = false;
 let rpc = null;
+let leaving = false;
 let playing = null; // { pack, startedAt } mientras Minecraft está abierto
 const serverByPack = {};
 
@@ -241,8 +242,10 @@ handle('pack:update', async (packId) => {
 
 handle('pack:play', async (packId) => {
   if (busy) throw new Error('Ya hay una operación en curso');
-  const mclcAuth = await account.getMclc(); // lanza NEED_LOGIN si no hay sesión
-  busy = true;
+  busy = true; // se marca antes de esperar el login para que dos clics seguidos no lancen el juego dos veces
+  let mclcAuth;
+  try { mclcAuth = await account.getMclc(); } // lanza NEED_LOGIN si no hay sesión
+  catch (e) { busy = false; throw e; }
   play(packId, mclcAuth).catch((err) => {
     send('game:state', { state: 'error', message: err.message || String(err) });
   }).finally(() => { busy = false; });
@@ -269,7 +272,9 @@ async function play(packId, mclcAuth) {
 
   send('game:state', { state: 'preparing', message: 'Descargando archivos de Minecraft…' });
   let startedAt = 0;
-  const code = await launchGame({
+  let code;
+  try {
+  code = await launchGame({
     manifest,
     instanceDir: dir,
     mclcAuth,
@@ -291,7 +296,7 @@ async function play(packId, mclcAuth) {
       onProgress: (p) => send('game:state', { state: 'preparing', message: `Descargando ${p.type || 'archivos'}… ${p.task}/${p.total}` }),
     },
   });
-  playing = null; setActivity();
+  } finally { playing = null; setActivity(); if (win && !win.isDestroyed() && win.isMinimized()) win.restore(); }
   if (startedAt) {
     const cur = getSettings();
     setSettings({
@@ -331,12 +336,12 @@ handle('app:openLink', async (key) => {
 
 handle('auth:login', async () => { const r = await account.login(); setActivity(); return r; });
 handle('auth:offline', async (name) => { const r = account.loginOffline(name); setActivity(); return r; });
-handle('auth:logout', async () => { account.logout(); setActivity(); return true; });
+handle('auth:logout', async () => { const was = (account.info || {}).name; account.logout(); leavePresence(was); setActivity(); return true; });
 handle('settings:set', async (patch) => {
   const allowed = {};
-  if (Number.isFinite(patch.ramMb)) allowed.ramMb = Math.max(1024, Math.round(patch.ramMb));
+  if (Number.isFinite(patch.ramMb)) allowed.ramMb = Math.min(Math.max(1024, Math.round(patch.ramMb)), Math.max(1024, Math.floor(require('os').totalmem() / 1048576)));
   if (typeof patch.selectedPack === 'string' || patch.selectedPack === null) allowed.selectedPack = patch.selectedPack;
-  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud', 'closeToTray', 'discordRpc', 'discordShowNick', 'sharePresence']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
+  for (const k of ['jvmOptimized', 'minimizeOnPlay', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud', 'closeToTray', 'discordRpc', 'discordShowNick', 'sharePresence', 'notifyFriends']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
   if (typeof patch.extraJvm === 'string') allowed.extraJvm = cleanJvm(patch.extraJvm).join(' ');
   if (['cyber', 'nova', 'violet', 'ocean', 'emerald', 'ember'].includes(patch.theme)) allowed.theme = patch.theme;
   if ('autoStart' in allowed && app.isPackaged) app.setLoginItemSettings({ openAtLogin: allowed.autoStart });
@@ -346,6 +351,7 @@ handle('settings:set', async (patch) => {
     allowed.seenNews = clean;
   }
   const out = setSettings(allowed);
+  if ('sharePresence' in allowed) { if (allowed.sharePresence) beatSoon(); else leavePresence(); }
   if ('discordRpc' in allowed) { if (allowed.discordRpc) { rpc && rpc.start(); setActivity(); } else rpc && rpc.stop(); }
   else if ('discordShowNick' in allowed) setActivity();
   return out;
@@ -353,6 +359,7 @@ handle('settings:set', async (patch) => {
 
 // ───────────────────────── Discord, amigos y actualizaciones del launcher ─────────────────────────
 function setActivity() {
+  beatSoon();
   if (!rpc || getSettings().discordRpc === false) return;
   // Burbuja pequeña sobre el logo con la cara del jugador; al pasar el mouse sale su nick.
   const nick = (account.info || {}).name;
@@ -368,7 +375,8 @@ handle('app:updateStatus', async () => (updater ? updater.status() : { state: 'i
 handle('app:updateCheck', async () => updater.check());
 handle('app:updateInstall', async () => { updater.install(); return true; });
 
-handle('friends:list', async () => {
+// Estado de los amigos: jugadores del servidor (ping) + presencia. Si una fuente falla se avisa (ok=false) en vez de marcar a todos desconectados.
+async function friendsSnapshot() {
   const s = getSettings();
   const names = Array.isArray(s.friends) ? s.friends : [];
   const server = serverByPack[s.selectedPack];
@@ -377,19 +385,19 @@ handle('friends:list', async () => {
     getPresence(config.presenceUrl, names),
   ]);
   const inServer = new Set(((ping && ping.players && ping.players.names) || []).map((n) => n.toLowerCase()));
-  const list = names.map((name) => {
-    const p = pres[name.toLowerCase()];
-    const fresh = p && Date.now() - p.ts < 150000;
-    if (inServer.has(name.toLowerCase())) return { name, status: 'server', where: 'En el servidor' };
-    if (fresh && p.playing) return { name, status: 'playing', where: 'Jugando ' + (p.pack || 'Minecraft') };
-    if (fresh) return { name, status: 'online', where: 'En el launcher' };
-    return { name, status: 'offline', where: 'Desconectado' };
-  });
-  return { friends: list, presence: !!config.presenceUrl, serverKnown: !!server };
-});
+  return {
+    friends: buildFriendList(names, pres.data, inServer),
+    presence: !!config.presenceUrl,
+    presenceOk: !config.presenceUrl || pres.ok,
+    serverKnown: !!server,
+    pingOk: !server || !!ping,
+  };
+}
+handle('friends:list', friendsSnapshot);
 handle('friends:add', async (name) => {
   const n = cleanName(name);
   const cur = getSettings().friends || [];
+  if (n.toLowerCase() === String((account.info || {}).name || '').toLowerCase()) throw new Error('Ese eres tú: añade a tus amigos, no a ti mismo.');
   if (cur.some((f) => f.toLowerCase() === n.toLowerCase())) throw new Error('Ya tienes a ' + n + ' en tu lista.');
   if (cur.length >= 50) throw new Error('Máximo 50 amigos.');
   setSettings({ friends: [...cur, n] });
@@ -400,15 +408,51 @@ handle('friends:remove', async (name) => {
   return true;
 });
 
+// ───────────────────────── presencia propia ─────────────────────────
+async function beat() {
+  const name = (account.info || {}).name;
+  if (!config.presenceUrl || !name || getSettings().sharePresence === false) return;
+  await putPresence(config.presenceUrl, { name, pack: playing ? playing.pack : '', playing: !!playing });
+}
+let beatTimer = null;
+function beatSoon() { clearTimeout(beatTimer); beatTimer = setTimeout(beat, 800); } // junta cambios seguidos (login + jugar…) en un solo aviso
+async function leavePresence(name = (account.info || {}).name) {
+  if (config.presenceUrl && name) await putPresence(config.presenceUrl, { name, offline: true });
+}
 function startPresenceHeartbeat() {
   if (!config.presenceUrl) return;
-  const beat = () => {
-    const name = (account.info || {}).name;
-    if (!name || getSettings().sharePresence === false) return;
-    putPresence(config.presenceUrl, { name, pack: playing ? playing.pack : '', playing: !!playing });
-  };
   setTimeout(beat, 5000);
-  setInterval(beat, 60000).unref?.();
+  setInterval(beat, HEARTBEAT_MS).unref?.();
+}
+
+// Vigila a los amigos en segundo plano: actualiza el punto verde de la pestaña y avisa cuando alguien se conecta.
+let friendsPrev = null;
+function startFriendsWatcher() {
+  const tick = async () => {
+    const names = getSettings().friends || [];
+    if (!names.length) { friendsPrev = null; send('friends:summary', { online: 0, total: 0 }); return; }
+    try {
+      const snap = await friendsSnapshot();
+      if (!snap.presenceOk || !snap.pingOk) return; // una fuente no respondió: no tocar nada (evita falsos "se conectó")
+      const online = snap.friends.filter((f) => f.status !== 'offline').length;
+      send('friends:summary', { online, total: snap.friends.length });
+      const now = {};
+      for (const f of snap.friends) now[f.name.toLowerCase()] = f.status;
+      if (friendsPrev && getSettings().notifyFriends !== false && getSettings().notify !== false && win && !win.isFocused() && Notification.isSupported()) {
+        const came = snap.friends.filter((f) => friendsPrev[f.name.toLowerCase()] === 'offline' && f.status !== 'offline');
+        if (came.length) {
+          const one = came[0];
+          new Notification({
+            title: 'Atenas Client',
+            body: came.length === 1 ? `${one.name} ${one.status === 'online' ? 'abrió el launcher' : one.status === 'server' ? 'entró al servidor' : one.where.replace(/^Jugando/, 'está jugando')}` : `${came.map((f) => f.name).slice(0, 3).join(', ')}${came.length > 3 ? ' y más' : ''} se conectaron`,
+          }).show();
+        }
+      }
+      friendsPrev = now;
+    } catch { /* sin conexión: se reintenta luego */ }
+  };
+  setTimeout(tick, 8000);
+  setInterval(tick, 60000).unref?.();
 }
 handle('app:openFolder', async (packId, sub) => {
   const allowedSub = { screenshots: 'screenshots', mods: 'mods' };
@@ -493,8 +537,9 @@ function createWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   // La X manda el launcher a segundo plano (bandeja) en vez de cerrarlo; se sale desde la bandeja
   win.on('close', (e) => {
-    if (quitting || getSettings().closeToTray === false) return;
+    if (quitting) return;
     e.preventDefault();
+    if (getSettings().closeToTray === false) { quitApp(); return; }
     win.hide();
     if (!getSettings().trayHint && Notification.isSupported()) {
       setSettings({ trayHint: true });
@@ -504,6 +549,14 @@ function createWindow() {
   win.on('closed', () => { win = null; closeSplash(); });
 }
 
+// Salir del todo: avisa a los amigos de que ya no estás (máx. 1,5 s de espera) y cierra.
+async function quitApp() {
+  if (leaving) return;
+  leaving = true;
+  try { await Promise.race([leavePresence(), new Promise((r) => setTimeout(r, 1500))]); } catch {}
+  quitting = true;
+  app.quit();
+}
 function showWindow() {
   if (!win || win.isDestroyed()) return;
   if (win.isMinimized()) win.restore();
@@ -517,7 +570,7 @@ function createTray() {
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Abrir ' + config.launcherName, click: showWindow },
       { type: 'separator' },
-      { label: 'Salir del todo', click: () => { quitting = true; app.quit(); } },
+      { label: 'Salir del todo', click: quitApp },
     ]));
     tray.on('click', showWindow);
   } catch { tray = null; }
@@ -540,6 +593,7 @@ if (!app.requestSingleInstanceLock()) {
     if (!updater.init() && process.env.ATENAS_UPDATE_PREVIEW) updWin.preview();
     if (config.discordClientId) { rpc = new DiscordRpc(config.discordClientId); if (getSettings().discordRpc !== false) { rpc.start(); setActivity(); } }
     startPresenceHeartbeat();
+    startFriendsWatcher();
   });
   app.on('window-all-closed', () => app.quit());
 }

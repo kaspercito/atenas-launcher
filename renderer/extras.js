@@ -51,12 +51,14 @@
       $('optRpc').checked = init.settings.discordRpc !== false;
       $('optRpcNick').checked = init.settings.discordShowNick !== false;
       $('optShare').checked = init.settings.sharePresence !== false;
+      $('optNotifyFr').checked = init.settings.notifyFriends !== false;
     } catch {}
   }
   $('optTray').addEventListener('change', (e) => api.setSettings({ closeToTray: e.target.checked }));
   $('optRpc').addEventListener('change', (e) => api.setSettings({ discordRpc: e.target.checked }));
   $('optRpcNick').addEventListener('change', (e) => api.setSettings({ discordShowNick: e.target.checked }));
   $('optShare').addEventListener('change', (e) => api.setSettings({ sharePresence: e.target.checked }));
+  $('optNotifyFr').addEventListener('change', (e) => api.setSettings({ notifyFriends: e.target.checked }));
 
   // ───── amigos ─────
   let timer = null;
@@ -69,6 +71,8 @@
       $('frList').replaceChildren(...list.map((f, i) => {
         const row = document.createElement('div'); row.className = 'fr-row'; row.dataset.s = f.status; row.style.setProperty('--i', Math.min(i, 14));
         const av = document.createElement('div'); av.className = 'fr-head'; av.textContent = f.name[0].toUpperCase();
+        const face = document.createElement('img'); face.alt = ''; face.loading = 'lazy'; face.src = 'https://mc-heads.net/avatar/' + encodeURIComponent(f.name) + '/64';
+        face.addEventListener('load', () => av.classList.add('has-face')); face.addEventListener('error', () => face.remove()); av.append(face);
         const info = document.createElement('div'); info.className = 'fr-info';
         const n = document.createElement('strong'); n.textContent = f.name;
         const w = document.createElement('span'); w.textContent = f.where;
@@ -84,6 +88,7 @@
       $('frNote').textContent = d.presence ? '' : 'Ahora solo se detecta quién está dentro del servidor (el ping muestra hasta 12 jugadores). Para ver "Jugando…" activa el servicio de presencia.';
     } catch (e) { toast(e.message, true); }
   }
+  api.onFriends((sum) => { $('friendsDot').hidden = !sum || sum.online === 0; });
   function startFriends() { loadFriends(); clearInterval(timer); timer = setInterval(() => !document.hidden && loadFriends(), 45000); }
   function stopFriends() { clearInterval(timer); timer = null; }
   $('frForm').addEventListener('submit', async (ev) => {

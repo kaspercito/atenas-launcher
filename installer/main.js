@@ -6,13 +6,41 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 
 const REPO = 'kaspercito/atenas-launcher';
-const candidates = () => ['Atenas Client', 'Atenas Launcher'].map((d) => path.join(process.env.LOCALAPPDATA || '', 'Programs', d, d + '.exe'));
-const installedExe = () => candidates().find((f) => fs.existsSync(f)) || candidates()[0];
+const NAMES = ['Atenas Client', 'Atenas Launcher'];
+const LOG = path.join(os.tmpdir(), 'atenas-installer.log');
+const log = (m) => { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${m}\n`); } catch {} };
+
+// Carpetas donde puede haber quedado instalado: lo que registró Windows (desinstalador) + las rutas habituales.
+function installDirs() {
+  const dirs = [];
+  for (const hive of ['HKCU', 'HKLM']) {
+    try {
+      const out = execFileSync('reg', ['query', hive + '\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall', '/s', '/f', 'Atenas', '/d'],
+        { encoding: 'utf8', windowsHide: true, timeout: 8000, stdio: ['ignore', 'pipe', 'ignore'] });
+      for (const m of out.matchAll(/InstallLocation\s+REG_SZ\s+(.+)/g)) dirs.push(m[1].trim().replace(/^"|"$/g, ''));
+    } catch {}
+  }
+  for (const base of [process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs'), process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter(Boolean)) {
+    for (const n of NAMES) dirs.push(path.join(base, n));
+  }
+  return [...new Set(dirs)];
+}
+function findInstalled() {
+  for (const d of installDirs()) for (const n of NAMES) { const f = path.join(d, n + '.exe'); if (fs.existsSync(f)) return f; }
+  return null;
+}
+// El antivirus o Windows pueden tardar unos segundos en soltar los archivos: espera antes de dar error.
+async function waitInstalled(ms = 20000) {
+  const end = Date.now() + ms;
+  for (;;) { const f = findInstalled(); if (f || Date.now() > end) return f; await new Promise((r) => setTimeout(r, 500)); }
+}
+let installedPath = null;
+const installedExe = () => installedPath || findInstalled() || path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Atenas Client', 'Atenas Client.exe');
 let win = null;
 let busy = false;
 
@@ -28,16 +56,40 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 }
 
+// El launcher se queda en la bandeja al cerrar la ventana: si sigue abierto, el instalador no puede reemplazar sus archivos.
+// Sin /T para no matar Minecraft si alguien está jugando.
+function closeLauncher() {
+  for (const n of NAMES) { try { execFileSync('taskkill', ['/IM', n + '.exe', '/F'], { windowsHide: true, timeout: 8000, stdio: 'ignore' }); } catch {} }
+}
 const send = (p) => { if (win && !win.isDestroyed()) win.webContents.send('progress', p); };
 const mb = (n) => (n / 1048576).toFixed(1);
 
 async function latestSetup() {
-  const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { 'User-Agent': 'atenas-installer', Accept: 'application/vnd.github+json' } });
-  if (!r.ok) throw new Error(r.status === 404 ? 'Todavía no hay una versión publicada en GitHub.' : `GitHub respondió con error ${r.status}. Inténtalo en unos minutos.`);
-  const rel = await r.json();
-  const asset = (rel.assets || []).find((a) => /^Atenas-Client-Setup-.*\.exe$/.test(a.name));
-  if (!asset) throw new Error('No se encontró el instalador en la última versión de GitHub.');
-  return { asset, version: rel.tag_name };
+  let apiErr = null;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { 'User-Agent': 'atenas-installer', Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15000) });
+    if (r.status === 404) throw new Error('Todavía no hay una versión publicada en GitHub.');
+    if (!r.ok) throw Object.assign(new Error(`GitHub respondió con error ${r.status}.`), { retryable: true });
+    const rel = await r.json();
+    const asset = (rel.assets || []).find((a) => /^Atenas-Client-Setup-.*\.exe$/.test(a.name));
+    if (!asset) throw new Error('No se encontró el instalador en la última versión de GitHub.');
+    return { asset, version: rel.tag_name };
+  } catch (e) { if (!e.retryable && e.name !== 'TimeoutError' && e.name !== 'TypeError') throw e; apiErr = e; }
+  // La API falló (límite de peticiones, red compartida…): se lee latest.yml, que publica electron-builder en cada release.
+  log('API de GitHub falló (' + apiErr.message + '), usando latest.yml');
+  try {
+    const base = `https://github.com/${REPO}/releases/latest/download/`;
+    const y = await fetch(base + 'latest.yml', { headers: { 'User-Agent': 'atenas-installer' }, signal: AbortSignal.timeout(15000) });
+    if (!y.ok) throw new Error('HTTP ' + y.status);
+    const txt = await y.text();
+    const file = /^path:\s*(\S+)/m.exec(txt)?.[1];
+    const sha512 = /^sha512:\s*(\S+)/m.exec(txt)?.[1];
+    const version = /^version:\s*(\S+)/m.exec(txt)?.[1];
+    if (!file || !/^Atenas-Client-Setup-[\w.\-]+\.exe$/.test(file)) throw new Error('latest.yml inválido');
+    return { asset: { name: file, browser_download_url: base + file, size: 0, sha512 }, version };
+  } catch (e) {
+    throw new Error('No se pudo consultar GitHub. Revisa tu internet y reintenta. (' + (apiErr.message || e.message) + ')');
+  }
 }
 
 ipcMain.handle('install', async () => {
@@ -48,14 +100,15 @@ ipcMain.handle('install', async () => {
     const { asset } = await latestSetup();
     const dest = path.join(os.tmpdir(), asset.name);
 
-    const res = await fetch(asset.browser_download_url);
+    const res = await fetch(asset.browser_download_url, { signal: AbortSignal.timeout(30000) });
     if (!res.ok || !res.body) throw new Error('No se pudo descargar (error ' + res.status + '). Revisa tu internet.');
     const total = Number(res.headers.get('content-length')) || asset.size || 0;
     let got = 0; let last = 0;
     const hash = crypto.createHash('sha256');
+    const hash512 = crypto.createHash('sha512');
     const src = Readable.fromWeb(res.body);
     src.on('data', (c) => {
-      got += c.length; hash.update(c);
+      got += c.length; hash.update(c); hash512.update(c);
       if (Date.now() - last > 80) { last = Date.now(); send({ phase: 'work', pct: 5 + (total ? (got / total) * 65 : 0), text: `Descargando… ${mb(got)} / ${mb(total)} MB` }); }
     });
     await pipeline(src, fs.createWriteStream(dest));
@@ -63,18 +116,31 @@ ipcMain.handle('install', async () => {
       throw new Error('El archivo descargado está dañado. Inténtalo otra vez.');
     }
 
+    if (asset.sha512 && asset.sha512 !== hash512.digest('base64')) throw new Error('El archivo descargado está dañado. Inténtalo otra vez.');
+
     // instalación silenciosa: no informa de su avance, así que la barra avanza sola hasta que termina
     send({ phase: 'work', pct: 72, text: 'Instalando Atenas Client…' });
     let pct = 72;
     const tick = setInterval(() => { pct += (97 - pct) * 0.06; send({ phase: 'work', pct, text: 'Instalando Atenas Client…' }); }, 250);
+    closeLauncher();
+    await new Promise((r) => setTimeout(r, 800));
+    log('Ejecutando ' + dest + ' /S');
     const code = await new Promise((resolve, reject) => {
       const p = spawn(dest, ['/S'], { windowsHide: true });
       p.on('error', reject); p.on('exit', resolve);
     }).finally(() => clearInterval(tick));
-    try { fs.unlinkSync(dest); } catch {}
-    if (code !== 0 || !fs.existsSync(installedExe())) throw new Error('La instalación no terminó bien (código ' + code + '). Cierra el launcher si está abierto y reintenta.');
+    log('Instalador terminó con código ' + code);
+    send({ phase: 'work', pct: 98, text: 'Comprobando la instalación…' });
+    installedPath = await waitInstalled();
+    log('Ejecutable encontrado: ' + installedPath + ' | rutas revisadas: ' + installDirs().join(' ; '));
+    if (installedPath) { try { fs.unlinkSync(dest); } catch {} }
+    if (!installedPath) {
+      if (code !== 0) throw new Error('La instalación falló (código ' + code + '). Cierra el launcher si está abierto y reintenta.');
+      throw new Error('El instalador terminó pero no se encontró Atenas Client. Puede que tu antivirus lo haya bloqueado: desactívalo un momento y reintenta. Detalle: ' + LOG);
+    }
     send({ phase: 'done', pct: 100, text: '¡Todo listo!' });
   } catch (err) {
+    log('ERROR: ' + (err && err.stack || err));
     send({ phase: 'error', text: err.message || String(err) });
   } finally { busy = false; }
 });

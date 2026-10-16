@@ -18,6 +18,7 @@ async function fetchJson(url) {
   const sep = url.includes('?') ? '&' : '?';
   const res = await fetch(url + sep + 't=' + Date.now(), {
     headers: { 'Cache-Control': 'no-cache' },
+    signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} al leer ${url}`);
   return res.json();
@@ -34,17 +35,23 @@ async function downloadFile(url, dest, { sha256, onBytes, retries = 3 } = {}) {
   let lastErr;
   for (let attempt = 1; attempt <= retries; attempt++) {
     let counted = 0;
+    // Si la descarga se queda sin recibir datos 30 s (internet caído a medias) se corta y se reintenta, en vez de colgarse para siempre.
+    const ctl = new AbortController();
+    let stall = setTimeout(() => ctl.abort(), 30000);
+    const kick = () => { clearTimeout(stall); stall = setTimeout(() => ctl.abort(), 30000); };
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: ctl.signal });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const hash = crypto.createHash('sha256');
       const source = Readable.fromWeb(res.body);
       source.on('data', (chunk) => {
+        kick();
         hash.update(chunk);
         counted += chunk.length;
         if (onBytes) onBytes(chunk.length);
       });
-      await pipeline(source, fs.createWriteStream(tmp));
+      await pipeline(source, fs.createWriteStream(tmp), { signal: ctl.signal });
+      clearTimeout(stall);
       const got = hash.digest('hex');
       if (sha256 && got.toLowerCase() !== sha256.toLowerCase()) {
         throw new Error(`Hash incorrecto (esperado ${sha256.slice(0, 10)}…, recibido ${got.slice(0, 10)}…)`);
@@ -52,6 +59,7 @@ async function downloadFile(url, dest, { sha256, onBytes, retries = 3 } = {}) {
       fs.renameSync(tmp, dest);
       return got;
     } catch (err) {
+      clearTimeout(stall);
       lastErr = err;
       // deshacer el progreso contado para que la barra no pase de 100%
       if (onBytes && counted) onBytes(-counted);
