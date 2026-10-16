@@ -32,12 +32,32 @@ function installDirs() {
 }
 function findInstalled() {
   for (const d of installDirs()) for (const n of NAMES) { const f = path.join(d, n + '.exe'); if (fs.existsSync(f)) return f; }
+  // Respaldo: si la carpeta tiene otro nombre (instalaciones viejas), busca Atenas*.exe un nivel dentro de Programs.
+  try {
+    const prog = process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs');
+    if (prog) for (const d of fs.readdirSync(prog)) {
+      if (!/atenas/i.test(d)) continue;
+      for (const f of fs.readdirSync(path.join(prog, d))) if (/^atenas.*\.exe$/i.test(f) && !/unins|uninstall/i.test(f)) return path.join(prog, d, f);
+    }
+  } catch {}
   return null;
 }
+// ¿Sigue corriendo algún instalador de Atenas? (NSIS puede relanzarse y el proceso original sale con código 0 antes de copiar los archivos)
+function setupRunning() {
+  try {
+    const out = execFileSync('tasklist', ['/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true, timeout: 8000, stdio: ['ignore', 'pipe', 'ignore'] });
+    return /Atenas-Client-Setup/i.test(out);
+  } catch { return false; }
+}
 // El antivirus o Windows pueden tardar unos segundos en soltar los archivos: espera antes de dar error.
-async function waitInstalled(ms = 20000) {
-  const end = Date.now() + ms;
-  for (;;) { const f = findInstalled(); if (f || Date.now() > end) return f; await new Promise((r) => setTimeout(r, 500)); }
+async function waitInstalled(ms = 45000) {
+  const end = Date.now() + ms; const hardEnd = Date.now() + 180000;
+  for (;;) {
+    const f = findInstalled(); if (f) return f;
+    const now = Date.now();
+    if (now > hardEnd || (now > end && !setupRunning())) return null;
+    await new Promise((r) => setTimeout(r, 750));
+  }
 }
 let installedPath = null;
 const installedExe = () => installedPath || findInstalled() || path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Atenas Client', 'Atenas Client.exe');
@@ -161,8 +181,10 @@ ipcMain.handle('install', async () => {
     log('Ejecutable encontrado: ' + installedPath + ' | rutas revisadas: ' + installDirs().join(' ; '));
     if (installedPath) { try { fs.unlinkSync(dest); } catch {} }
     if (!installedPath) {
+      try { const prog = path.join(process.env.LOCALAPPDATA || '', 'Programs'); log('Contenido de ' + prog + ': ' + fs.readdirSync(prog).join(' | ')); } catch (e) { log('No se pudo listar Programs: ' + e.message); }
+      log('Instalador sigue corriendo: ' + setupRunning() + ' | archivo del instalador existe: ' + fs.existsSync(dest));
       if (code !== 0) throw new Error('La instalación falló (código ' + code + '). Cierra el launcher si está abierto y reintenta.');
-      throw new Error('El instalador terminó pero no se encontró Atenas Client. Puede que tu antivirus lo haya bloqueado: desactívalo un momento y reintenta. Detalle: ' + LOG);
+      throw new Error('El instalador terminó pero no se encontró Atenas Client. Puede que tu antivirus lo haya bloqueado o lo esté escaneando: espera un minuto, o desactívalo un momento, y pulsa Reintentar. Si sigue igual, mándale a kaspercito este archivo: ' + LOG);
     }
     send({ phase: 'done', pct: 100, text: '¡Todo listo!' });
   } catch (err) {
