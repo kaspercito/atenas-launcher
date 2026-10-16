@@ -92,6 +92,33 @@ async function latestSetup() {
   }
 }
 
+// Errores de red que merecen reintento (corte, timeout, DNS, reset…).
+const isNetErr = (e) => !!e && (['TimeoutError', 'AbortError', 'TypeError'].includes(e.name) || /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|terminated|aborted|timeout/i.test(String(e.code || '') + ' ' + String(e.message || '')));
+
+// Descarga con timeout por INACTIVIDAD: solo se aborta si pasan 30 s sin recibir ni un byte.
+// (Antes había un límite fijo de 30 s para toda la descarga, y el instalador pesa decenas de MB:
+//  con internet lento se cortaba siempre con "The operation was aborted due to timeout".)
+async function download(asset, dest, onProgress) {
+  const ctl = new AbortController();
+  let stall = setTimeout(() => ctl.abort(), 30000);
+  const kick = () => { clearTimeout(stall); stall = setTimeout(() => ctl.abort(), 30000); };
+  try {
+    const res = await fetch(asset.browser_download_url, { signal: ctl.signal });
+    if (!res.ok || !res.body) throw new Error('No se pudo descargar (error ' + res.status + '). Revisa tu internet.');
+    const total = Number(res.headers.get('content-length')) || asset.size || 0;
+    let got = 0; let last = 0;
+    const h256 = crypto.createHash('sha256');
+    const h512 = crypto.createHash('sha512');
+    const src = Readable.fromWeb(res.body);
+    src.on('data', (c) => {
+      kick(); got += c.length; h256.update(c); h512.update(c);
+      if (Date.now() - last > 80) { last = Date.now(); onProgress(got, total); }
+    });
+    await pipeline(src, fs.createWriteStream(dest));
+    return { sha256: h256.digest('hex'), sha512: h512.digest('base64') };
+  } finally { clearTimeout(stall); }
+}
+
 ipcMain.handle('install', async () => {
   if (busy) return;
   busy = true;
@@ -100,23 +127,22 @@ ipcMain.handle('install', async () => {
     const { asset } = await latestSetup();
     const dest = path.join(os.tmpdir(), asset.name);
 
-    const res = await fetch(asset.browser_download_url, { signal: AbortSignal.timeout(30000) });
-    if (!res.ok || !res.body) throw new Error('No se pudo descargar (error ' + res.status + '). Revisa tu internet.');
-    const total = Number(res.headers.get('content-length')) || asset.size || 0;
-    let got = 0; let last = 0;
-    const hash = crypto.createHash('sha256');
-    const hash512 = crypto.createHash('sha512');
-    const src = Readable.fromWeb(res.body);
-    src.on('data', (c) => {
-      got += c.length; hash.update(c); hash512.update(c);
-      if (Date.now() - last > 80) { last = Date.now(); send({ phase: 'work', pct: 5 + (total ? (got / total) * 65 : 0), text: `Descargando… ${mb(got)} / ${mb(total)} MB` }); }
-    });
-    await pipeline(src, fs.createWriteStream(dest));
-    if (typeof asset.digest === 'string' && asset.digest.startsWith('sha256:') && asset.digest.slice(7).toLowerCase() !== hash.digest('hex')) {
+    // Hasta 3 intentos: en conexiones lentas o inestables la descarga puede cortarse a mitad.
+    let dl = null;
+    for (let attempt = 1; attempt <= 3 && !dl; attempt++) {
+      try {
+        dl = await download(asset, dest, (got, total) => send({ phase: 'work', pct: 5 + (total ? (got / total) * 65 : 0), text: `Descargando… ${mb(got)} / ${mb(total)} MB` }));
+      } catch (e) {
+        log(`Descarga fallida (intento ${attempt}/3): ${e && e.name}: ${e && e.message}`);
+        if (!isNetErr(e) || attempt === 3) throw e;
+        send({ phase: 'work', pct: 5, text: `Conexión lenta, reintentando (${attempt + 1}/3)…` });
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
+    if (typeof asset.digest === 'string' && asset.digest.startsWith('sha256:') && asset.digest.slice(7).toLowerCase() !== dl.sha256) {
       throw new Error('El archivo descargado está dañado. Inténtalo otra vez.');
     }
-
-    if (asset.sha512 && asset.sha512 !== hash512.digest('base64')) throw new Error('El archivo descargado está dañado. Inténtalo otra vez.');
+    if (asset.sha512 && asset.sha512 !== dl.sha512) throw new Error('El archivo descargado está dañado. Inténtalo otra vez.');
 
     // instalación silenciosa: no informa de su avance, así que la barra avanza sola hasta que termina
     send({ phase: 'work', pct: 72, text: 'Instalando Atenas Client…' });
@@ -141,7 +167,10 @@ ipcMain.handle('install', async () => {
     send({ phase: 'done', pct: 100, text: '¡Todo listo!' });
   } catch (err) {
     log('ERROR: ' + (err && err.stack || err));
-    send({ phase: 'error', text: err.message || String(err) });
+    const msg = isNetErr(err) && !/GitHub|descargar|dañado/.test(err.message || '')
+      ? 'La descarga se cortó o tu internet está muy lento. Revisa tu conexión y pulsa Reintentar.'
+      : (err.message || String(err));
+    send({ phase: 'error', text: msg });
   } finally { busy = false; }
 });
 
