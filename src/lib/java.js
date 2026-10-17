@@ -47,6 +47,20 @@ function systemJavaMajor() {
   });
 }
 
+/**
+ * Prueba real: ejecuta `java -version` (con java.exe, no javaw, para que no salga el cuadro de error de Windows).
+ * Un JRE a medias (antivirus que borró archivos, descompresión cortada, jvm.cfg faltante) falla aquí.
+ */
+function smokeTest(bin) {
+  return new Promise((resolve) => {
+    const exe = isWin ? path.join(path.dirname(bin), 'java.exe') : bin;
+    const run = fs.existsSync(exe) ? exe : bin;
+    execFile(run, ['-version'], { timeout: 20000, windowsHide: true }, (err, stdout, stderr) => {
+      resolve(!err && /version/i.test(`${stderr || ''}${stdout || ''}`));
+    });
+  });
+}
+
 function adoptiumUrl(major) {
   const osName = isWin ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux';
   const arch = process.arch === 'arm64' ? 'aarch64' : 'x64';
@@ -60,7 +74,12 @@ function adoptiumUrl(major) {
 async function ensureJava(major, runtimeDir, log = () => {}, onProgress = () => {}) {
   const target = path.join(runtimeDir, `java-${major}`);
   const existing = fs.existsSync(target) ? findBinary(target) : null;
-  if (existing) return existing;
+  if (existing) {
+    if (await smokeTest(existing)) return existing;
+    // Java descargado pero dañado (p. ej. falta lib/jvm.cfg): se borra y se baja de nuevo
+    log(`El Java ${major} guardado está dañado o incompleto; se vuelve a descargar…`);
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 
   const sys = await systemJavaMajor();
   if (sys === major) {
@@ -71,26 +90,43 @@ async function ensureJava(major, runtimeDir, log = () => {}, onProgress = () => 
   log(`Descargando Java ${major} (solo la primera vez)…`);
   fs.mkdirSync(runtimeDir, { recursive: true });
   const archive = path.join(runtimeDir, `java-${major}${isWin ? '.zip' : '.tar.gz'}`);
-  let total = 0;
-  await downloadFile(adoptiumUrl(major), archive, {
-    onBytes: (n) => { total += n; onProgress(total); },
-  });
-
-  // Se extrae a una carpeta temporal y se renombra al final: si se cierra el launcher a mitad, no queda un Java a medias
-  // que la próxima vez se tome por bueno (y el juego no arranque).
   const tmp = target + '.tmp';
-  fs.rmSync(tmp, { recursive: true, force: true });
-  fs.mkdirSync(tmp, { recursive: true });
-  if (isWin) {
-    const AdmZip = require('adm-zip');
-    new AdmZip(archive).extractAllTo(tmp, true);
-  } else {
-    execFileSync('tar', ['-xzf', archive, '-C', tmp]);
+  let lastErr;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      let total = 0;
+      await downloadFile(adoptiumUrl(major), archive, {
+        onBytes: (n) => { total += n; onProgress(total); },
+      });
+
+      // Se extrae a una carpeta temporal y se renombra al final: si se cierra el launcher a mitad, no queda un Java a medias
+      // que la próxima vez se tome por bueno (y el juego no arranque).
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.mkdirSync(tmp, { recursive: true });
+      if (isWin) {
+        const AdmZip = require('adm-zip');
+        new AdmZip(archive).extractAllTo(tmp, true);
+      } else {
+        execFileSync('tar', ['-xzf', archive, '-C', tmp]);
+      }
+      fs.rmSync(archive, { force: true });
+      const tmpBin = findBinary(tmp);
+      if (!tmpBin) throw new Error(`No se encontró Java ${major} tras descomprimir`);
+      if (!isWin) fs.chmodSync(tmpBin, 0o755);
+      // se prueba ANTES de darlo por bueno: si falta algo (antivirus, disco lleno, zip corrupto) se reintenta
+      if (!(await smokeTest(tmpBin))) throw new Error(`El Java ${major} descargado no arranca (archivos incompletos o bloqueados por el antivirus)`);
+      fs.rmSync(target, { recursive: true, force: true });
+      fs.renameSync(tmp, target);
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+      log(`Java ${major}: intento ${attempt} falló: ${e.message}`);
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.rmSync(archive, { force: true });
+    }
   }
-  fs.rmSync(archive, { force: true });
-  if (!findBinary(tmp)) { fs.rmSync(tmp, { recursive: true, force: true }); throw new Error(`No se encontró Java ${major} tras descomprimir`); }
-  fs.rmSync(target, { recursive: true, force: true });
-  fs.renameSync(tmp, target);
+  if (lastErr) throw new Error(`No se pudo preparar Java ${major}: ${lastErr.message}. Si tienes antivirus, permite la carpeta .atenasclient o instala Java ${major} manualmente.`);
 
   const bin = findBinary(target);
   if (!isWin) fs.chmodSync(bin, 0o755);
@@ -98,4 +134,4 @@ async function ensureJava(major, runtimeDir, log = () => {}, onProgress = () => 
   return bin;
 }
 
-module.exports = { javaMajorFor, ensureJava, findBinary, systemJavaMajor };
+module.exports = { javaMajorFor, ensureJava, findBinary, systemJavaMajor, smokeTest };
