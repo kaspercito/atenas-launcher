@@ -28,7 +28,8 @@
   const press = (id) => () => $(id)?.click();
   const acts = [
     ['Jugar / instalar', 'Enter', press('btnPlay')], ['Ir a Inicio', '1', go('home')], ['Ir a Mods', '2', go('mods')],
-    ['Ir a Novedades', '3', go('news')], ['Ir a Ajustes', '4', go('settings')],
+    ['Ir a Novedades', '3', go('news')], ['Ir a Amigos y chat', '4', go('friends')], ['Ir a Ajustes', '5', go('settings')],
+    ['Elegir modpack', 'M', press('packSelect')],
     ['Copiar IP del servidor', '', press('scIp')], ['Abrir carpeta del juego', '', press('btnFolder')],
     ['Abrir capturas', '', press('qShots')], ['Reparar instalación', '', press('qRepair')], ['Ver registro del juego', '', press('btnLog')],
     ['Cambiar tema de color', '', () => { const t = [...document.querySelectorAll('.theme')]; const i = t.findIndex((x) => x.getAttribute('aria-checked') === 'true'); t[(i + 1) % t.length]?.click(); }],
@@ -55,15 +56,16 @@
     pal.addEventListener('pointerdown', (e) => { if (e.target === pal) close(); });
     document.body.append(pal); draw(); inp.focus();
   };
-  const tb = document.querySelector('.titlebar');
-  if (tb) { const k = document.createElement('button'); k.className = 'kpill'; k.innerHTML = 'Buscar acciones <i class="kbd">Ctrl K</i>'; k.onclick = open; tb.append(k); }
+  const tb = document.querySelector('.rail');
+  if (tb) { const k = document.createElement('button'); k.className = 'kpill'; k.innerHTML = 'Buscar <i class="kbd">Ctrl K</i>'; k.onclick = open; tb.insertBefore(k, tb.querySelector('.account')); }
 
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); return open(); }
     if (pal || e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
-    const i = '1234'.indexOf(e.key);
-    if (i >= 0) go(['home', 'mods', 'news', 'settings'][i])();
-    if (e.key === '/') { e.preventDefault(); acts[11][2](); }
+    const i = '12345'.indexOf(e.key);
+    if (i >= 0) go(['home', 'mods', 'news', 'friends', 'settings'][i])();
+    if (e.key.toLowerCase() === 'm') press('packSelect')();
+    if (e.key === '/') { e.preventDefault(); go('mods')(); setTimeout(() => $('modSearch')?.focus(), 80); }
   });
   document.querySelectorAll('.nav-btn').forEach((b, i) => { const k = document.createElement('i'); k.className = 'kbd'; k.textContent = i + 1; b.appendChild(k); });
 })();

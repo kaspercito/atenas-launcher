@@ -3,7 +3,7 @@
 Launcher de Minecraft con tus propios modpacks. Tus amigos lo abren, ven si hay mods nuevos y juegan con la configuración que tú elegiste. Todo gratis: el launcher es una app de Electron y los packs viven en un repo público de GitHub.
 
 **Qué hace**
-- Amigos: quién está en el servidor, jugando o en el launcher, con aviso cuando se conectan (presencia opcional: `presence/LEEME.md`).
+- Amigos y chat: solicitudes de amistad, lista con estado (en el launcher / jugando / en qué servidor), chat privado y avisos de mensajes y solicitudes. Funciona igual dentro del cliente de Minecraft (Shift+Tab). Requiere activar el servicio una vez: `social-worker/LEEME.md`.
 - Estado del servidor en vivo (jugadores, ping, MOTD) y botón para copiar la IP.
 - Temas de color, tiempo jugado, reparar instalación, acceso a capturas, enlaces a Discord/Web (se configuran en `launcher.config.json` → `links`).
 - Cuentas premium (Microsoft) y no premium (solo un nombre, sin conexión).
@@ -77,6 +77,25 @@ git tag v1.0.0 && git push origin v1.0.0
 GitHub Actions (gratis) construye `Atenas Client Setup 1.0.0.exe` y lo publica en *Releases*. Pásales ese enlace. Cuando saques `v1.0.1` el launcher se actualiza solo.
 
 Si prefieres hacerlo en tu PC con Windows: `npm install` y luego `npm run dist`; el instalador queda en `dist/`.
+
+## Atenas Client 1.8.9 (el cliente PvP) dentro del launcher
+
+El launcher trae un perfil integrado, **Atenas Client 1.8.9**, que aparece junto a tus modpacks sin tocar el repo de packs. Al darle a Jugar:
+
+1. Descarga Java 8 (solo la primera vez).
+2. Instala Forge 1.8.9 (11.15.1.2318) en la instancia, con instalador propio (no usa el de línea de comandos de Forge).
+3. Baja el `AtenasClient-X.Y.Z.jar` de la **última Release** del repo del cliente a `mods/` y borra el anterior.
+4. Entra directo a `arefy.net` (cambia o vacía `server` para que no entre solo).
+
+Se configura en `launcher.config.json` → `clientPack` (`repo`, `server`, `forge`, `minecraft`; `"enabled": false` lo quita).
+
+**Publicar una versión del cliente:** en el repo del cliente `git tag v1.0.1 && git push origin v1.0.1`. GitHub Actions compila y crea la Release; a tus amigos les sale "Actualización disponible" y se actualiza al jugar. El repo del cliente debe ser **público** y el workflow debe adjuntar `AtenasClient-X.Y.Z.jar`.
+
+**Probar sin publicar:** deja un `AtenasClient-X.Y.Z.jar` en `%USERPROFILE%\.atenasclient\client-local\` y el launcher usa ese en vez de GitHub (bórralo para volver a las Releases).
+
+Todos los datos del launcher viven en `%USERPROFILE%\.atenasclient` (`config/`, `instances/`, `runtime/`, `cache/`, `client-local/`, `logs/`). Lo que había en `%APPDATA%\Atenas Launcher` se mueve solo la primera vez.
+
+Los mods que el jugador ponga a mano en la instancia no se borran (esta carpeta no está administrada).
 
 ## Probarlo en tu PC
 

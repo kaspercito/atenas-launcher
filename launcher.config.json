@@ -7,5 +7,14 @@
     "web": ""
   },
   "discordClientId": "1560093585485988001",
-  "presenceUrl": "https://atenas-presence.misafi282.workers.dev"
+  "socialUrl": "https://atenas-presence.misafi282.workers.dev",
+  "clientPack": {
+    "id": "atenas-client",
+    "name": "Atenas Client 1.8.9",
+    "description": "Cliente PvP propio para Minecraft 1.8.9: HUD, cosméticos y menú de Atenas. Se instala y se actualiza solo.",
+    "repo": "kaspercito/atenas-client",
+    "minecraft": "1.8.9",
+    "forge": "11.15.1.2318",
+    "server": "arefy.net"
+  }
 }

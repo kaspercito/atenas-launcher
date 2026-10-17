@@ -43,4 +43,5 @@
 !macro customUnInstall
   MessageBox MB_YESNO|MB_ICONQUESTION "¿Quieres borrar también tus modpacks, mundos y ajustes de Atenas Client?$\r$\n$\r$\nElige No para conservarlos." /SD IDNO IDNO +2
   RMDir /r "$APPDATA\Atenas Launcher"
+  RMDir /r "$PROFILE\.atenasclient"
 !macroend

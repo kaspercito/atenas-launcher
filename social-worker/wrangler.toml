@@ -1,0 +1,10 @@
+# Servicio social de Atenas (amigos, solicitudes, chat, presencia). Mismo nombre que el Worker de presencia antiguo:
+# al desplegarlo REEMPLAZA a ese Worker y la URL (https://atenas-presence.TU-USUARIO.workers.dev) sigue siendo la misma.
+name = "atenas-presence"
+main = "worker.mjs"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "atenas-social"
+database_id = "09f4e948-4b03-493e-a5e1-a5648a27d734"

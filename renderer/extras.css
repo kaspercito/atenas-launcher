@@ -41,3 +41,6 @@
 
 @media (prefers-reduced-motion:reduce){.view.enter *,.upd,.toast{animation:none!important}.fr-row,.nav-btn svg{transition:none}}
 body.no-fx .view.enter *,body.no-fx .upd{animation:none!important}
+
+/* OptiFine (Ajustes) */
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }

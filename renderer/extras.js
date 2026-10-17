@@ -11,10 +11,9 @@
   // ───── animación de entrada escalonada al cambiar de pestaña ─────
   document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => {
     const v = $('view-' + b.dataset.view); if (!v) return;
-    v.querySelectorAll(':is(.mod-card,.fr-row,.card,.news>*,.pack-tab,.stat)').forEach((n, i) => n.style.setProperty('--i', Math.min(i, 14)));
+    v.querySelectorAll(':is(.mod-card,.card,.news>*,.stat,.side-card,.server-card)').forEach((n, i) => n.style.setProperty('--i', Math.min(i, 14)));
     v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter');
     setTimeout(() => v.classList.remove('enter'), 1100);
-    if (b.dataset.view === 'friends') startFriends(); else stopFriends();
     if (b.dataset.view === 'settings') loadExtraSettings();
   }));
 
@@ -52,6 +51,7 @@
       $('optRpcNick').checked = init.settings.discordShowNick !== false;
       $('optShare').checked = init.settings.sharePresence !== false;
       $('optNotifyFr').checked = init.settings.notifyFriends !== false;
+      $('optNotifyChat').checked = init.settings.notifyChat !== false;
     } catch {}
   }
   $('optTray').addEventListener('change', (e) => api.setSettings({ closeToTray: e.target.checked }));
@@ -59,46 +59,6 @@
   $('optRpcNick').addEventListener('change', (e) => api.setSettings({ discordShowNick: e.target.checked }));
   $('optShare').addEventListener('change', (e) => api.setSettings({ sharePresence: e.target.checked }));
   $('optNotifyFr').addEventListener('change', (e) => api.setSettings({ notifyFriends: e.target.checked }));
+  $('optNotifyChat').addEventListener('change', (e) => api.setSettings({ notifyChat: e.target.checked }));
 
-  // ───── amigos ─────
-  let timer = null;
-  async function loadFriends() {
-    try {
-      const d = await call(api.friends);
-      const order = { playing: 0, server: 0, online: 1, offline: 2 };
-      const list = d.friends.slice().sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
-      // DOM puro: la CSP del launcher no permite estilos/handlers en línea ni imágenes externas
-      $('frList').replaceChildren(...list.map((f, i) => {
-        const row = document.createElement('div'); row.className = 'fr-row'; row.dataset.s = f.status; row.style.setProperty('--i', Math.min(i, 14));
-        const av = document.createElement('div'); av.className = 'fr-head'; av.textContent = f.name[0].toUpperCase();
-        const face = document.createElement('img'); face.alt = ''; face.loading = 'lazy'; face.src = 'https://mc-heads.net/avatar/' + encodeURIComponent(f.name) + '/64';
-        face.addEventListener('load', () => av.classList.add('has-face')); face.addEventListener('error', () => face.remove()); av.append(face);
-        const info = document.createElement('div'); info.className = 'fr-info';
-        const n = document.createElement('strong'); n.textContent = f.name;
-        const w = document.createElement('span'); w.textContent = f.where;
-        info.append(n, w);
-        const dot = document.createElement('i'); dot.className = 'fr-dot';
-        const x = document.createElement('button'); x.className = 'icon-mini fr-x'; x.dataset.name = f.name; x.title = 'Quitar'; x.textContent = '×';
-        row.append(av, info, dot, x); return row;
-      }));
-      $('frEmpty').hidden = list.length > 0;
-      const on = list.filter((f) => f.status !== 'offline').length;
-      $('friendsDot').hidden = on === 0;
-      $('frSub').textContent = list.length ? `${on} de ${list.length} conectados` : 'Añade el nick de Minecraft de tus amigos y mira quién está conectado.';
-      $('frNote').textContent = d.presence ? '' : 'Ahora solo se detecta quién está dentro del servidor (el ping muestra hasta 12 jugadores). Para ver "Jugando…" activa el servicio de presencia.';
-    } catch (e) { toast(e.message, true); }
-  }
-  api.onFriends((sum) => { $('friendsDot').hidden = !sum || sum.online === 0; });
-  function startFriends() { loadFriends(); clearInterval(timer); timer = setInterval(() => !document.hidden && loadFriends(), 45000); }
-  function stopFriends() { clearInterval(timer); timer = null; }
-  $('frForm').addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const name = $('frName').value.trim(); if (!name) return;
-    try { await call(api.addFriend, name); $('frName').value = ''; loadFriends(); } catch (e) { toast(e.message, true); }
-  });
-  $('frList').addEventListener('click', async (ev) => {
-    const b = ev.target.closest('.fr-x'); if (!b) return;
-    await call(api.removeFriend, b.dataset.name).catch((e) => toast(e.message, true));
-    loadFriends();
-  });
 })();

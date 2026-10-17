@@ -64,6 +64,13 @@ const OPTIMIZED_JVM_ARGS = [
   '-XX:+PerfDisableSharedMem',
 ];
 
+/** --quickPlayMultiplayer existe desde 1.20; antes (1.8.9, 1.12…) se entra con --server/--port. */
+function quickPlayFor(manifest) {
+  if (!manifest.server) return null;
+  const minor = Number((/^1\.(\d+)/.exec(manifest.minecraft || '') || [])[1]);
+  return { type: minor && minor < 20 ? 'legacy' : 'multiplayer', identifier: manifest.server };
+}
+
 function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb, optimizedJvm = true, extraJvm = [], fullscreen = false, hooks = {} }) {
   const launcher = new Client();
   const packMax = parseMb(manifest.ram?.max, null);
@@ -85,9 +92,8 @@ function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb
   if (fullscreen) opts.window = { fullscreen: true };
   if (jvm.length) opts.customArgs = jvm;
   if (customId) opts.version.custom = customId;
-  if (manifest.server) {
-    opts.quickPlay = { type: 'multiplayer', identifier: manifest.server };
-  }
+  const quickPlay = quickPlayFor(manifest);
+  if (quickPlay) opts.quickPlay = quickPlay;
 
   return new Promise((resolve, reject) => {
     let started = false;
@@ -108,4 +114,4 @@ function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb
   });
 }
 
-module.exports = { launchGame, parseMb, loaderJvmArgs };
+module.exports = { launchGame, parseMb, loaderJvmArgs, quickPlayFor };

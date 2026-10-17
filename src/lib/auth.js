@@ -42,19 +42,34 @@ class Account {
     return { name, uuid, kind: 'offline' };
   }
 
-  async login() {
+  /** Ventana oficial de Microsoft. Devuelve el objeto Minecraft de msmc y los datos de la cuenta (sin guardar nada). */
+  async _microsoft(windowOptions) {
     const auth = new Auth('select_account');
     let xbox;
     try {
-      xbox = await auth.launch('electron', { width: 520, height: 680, resizable: false });
+      xbox = await auth.launch('electron', { width: 520, height: 680, resizable: false, ...windowOptions });
     } catch (err) {
       throw new Error(String(err).includes('closed') ? 'Cerraste la ventana de inicio de sesión' : 'Error de inicio de sesión: ' + err);
     }
-    this.mc = await xbox.getMinecraft();
-    const p = this.mc.profile;
+    const mc = await xbox.getMinecraft();
+    const p = mc.profile;
     if (!p) throw new Error('Esta cuenta de Microsoft no tiene Minecraft Java Edition');
-    this.store.save({ kind: 'microsoft', refreshToken: xbox.save(), name: p.name, uuid: p.id });
-    return { name: p.name, uuid: p.id, kind: 'microsoft' };
+    return { mc, entry: { kind: 'microsoft', refreshToken: xbox.save(), name: p.name, uuid: p.id } };
+  }
+
+  async login() {
+    const { mc, entry } = await this._microsoft();
+    this.mc = mc;
+    this.store.save(entry);
+    return { name: entry.name, uuid: entry.uuid, kind: 'microsoft' };
+  }
+
+  /**
+   * Inicia sesión con otra cuenta de Microsoft SIN cambiar la cuenta activa (para añadirla desde el juego).
+   * Devuelve { kind, refreshToken, name, uuid }; quien llama la guarda en la lista de cuentas.
+   */
+  async addMicrosoft(windowOptions) {
+    return (await this._microsoft(windowOptions)).entry;
   }
 
   /** Devuelve el objeto de autorización para MCLC, renovando el token si hace falta. */

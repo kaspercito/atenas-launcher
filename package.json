@@ -1,14 +1,14 @@
 {
   "name": "atenas-launcher",
   "productName": "Atenas Client",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Launcher de Minecraft con modpacks propios y actualizaciones automáticas de mods",
   "main": "main.js",
   "author": "kaspercito",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node test/test-sync.js && node test/test-packsync.js && node test/test-ping.js && node test/test-loaders.js && node test/test-discord.js && node test/test-friends.js && node admin/test/test-modsfile.js && node admin/test/test-packs.js && node admin/test/test-curseforge.js",
+    "test": "node test/test-sync.js && node test/test-packsync.js && node test/test-ping.js && node test/test-loaders.js && node test/test-client.js && node test/test-optifine.js && node test/test-forgesplash.js && node test/test-loadprogress.js && node test/test-paths.js && node test/test-discord.js && node test/test-social.js && node test/test-accounts.js && node test/test-accountreq.js && node social-worker/test/test-social-worker.js && node admin/test/test-modsfile.js && node admin/test/test-packs.js && node admin/test/test-curseforge.js",
     "manifest": "node tools/generate-manifest.js",
     "dist": "electron-builder --win --publish never",
     "pack": "node tools/pack-sync.js",

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const { fetchJson, downloadFile } = require('./net');
+const { installLegacyForge } = require('./legacyforge');
 
 function versionsDir(instanceDir) {
   return path.join(instanceDir, 'versions');
@@ -41,11 +42,27 @@ async function ensureProfileLoader(type, mc, version, instanceDir, log) {
   return writeProfile(instanceDir, profile);
 }
 
+/** Forge de 1.7.10 / 1.8.x: instalador "clásico" (sin procesadores). El resto sigue con el instalador oficial. */
+function isLegacyForge(type, mc) {
+  return type === 'forge' && /^1\.(7\.10|8(\.\d+)?)$/.test(mc || '');
+}
+
+/** Forge 1.7.10 y 1.8.x se publican como "<mc>-<forge>-<mc>" (p. ej. 1.8.9-11.15.1.2318-1.8.9). */
+function legacyForgeFullVersion(mc, version) {
+  const v = String(version);
+  if (v.startsWith(mc + '-')) return v;                       // ya viene completa
+  return /^1\.(7\.10|8(\.\d+)?)$/.test(mc) ? `${mc}-${v}-${mc}` : `${mc}-${v}`;
+}
+
 /**
  * Id de versión que deja el instalador y URL del instalador de Forge / NeoForge.
  * NeoForge 1.20.1 (47.x) se publica como "forge" dentro de net.neoforged; desde 1.20.2 el artefacto se llama "neoforge".
  */
 function installerCoords(type, mc, version) {
+  if (isLegacyForge(type, mc)) {
+    const full = legacyForgeFullVersion(mc, version);
+    return { id: `${mc}-forge${full}`, url: `https://maven.minecraftforge.net/net/minecraftforge/forge/${full}/forge-${full}-installer.jar` };
+  }
   if (type === 'forge') {
     return { id: `${mc}-forge-${version}`, url: `https://maven.minecraftforge.net/net/minecraftforge/forge/${mc}-${version}/forge-${mc}-${version}-installer.jar` };
   }
@@ -72,11 +89,33 @@ function runInstaller(javaPath, jar, instanceDir, log, flag = '--installClient')
 async function ensureInstallerLoader(type, mc, version, instanceDir, javaPath, log) {
   if (!version) throw new Error(`Para ${type} indica la versión exacta en loader.version`);
   const { id: expectedId, url } = installerCoords(type, mc, version);
+  const legacy = isLegacyForge(type, mc);
+  // En Forge clásico el id real lo dice el instalador; se recuerda para no reinstalar cada vez.
+  const marker = path.join(instanceDir, `.atenas-loader-${type}-${mc}-${version}.id`);
+  if (legacy) {
+    try {
+      const saved = fs.readFileSync(marker, 'utf8').trim();
+      if (saved && profileExists(instanceDir, saved)) return saved;
+    } catch { /* primera vez */ }
+  }
   if (profileExists(instanceDir, expectedId)) return expectedId;
 
   log(`Descargando instalador de ${type} ${version}…`);
   const jar = path.join(instanceDir, `.installer-${type}-${version}.jar`);
   await downloadFile(url, jar);
+
+  if (legacy) {
+    try {
+      log(`Instalando ${type} ${version}…`);
+      const id = await installLegacyForge(jar, instanceDir, log);
+      fs.rmSync(jar, { force: true });
+      fs.writeFileSync(marker, id);
+      return id;
+    } catch (e) {
+      if (e.code !== 'NOT_LEGACY') { fs.rmSync(jar, { force: true }); throw e; }
+      log('Instalador con formato distinto; usando el instalador oficial…');
+    }
+  }
 
   // El instalador espera que exista un launcher_profiles.json
   const profiles = path.join(instanceDir, 'launcher_profiles.json');
@@ -120,4 +159,4 @@ async function ensureLoader(manifest, instanceDir, javaPath, log = () => {}) {
   }
 }
 
-module.exports = { ensureLoader, installerCoords };
+module.exports = { ensureLoader, installerCoords, isLegacyForge, legacyForgeFullVersion };

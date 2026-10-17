@@ -6,6 +6,7 @@
 
   const state = {
     account: null,
+    adding: false,
     settings: {},
     totalRamMb: 8192,
     packs: [],
@@ -87,34 +88,42 @@
   // ───────── vistas ─────────
   function showView(name) {
     state.view = name;
+    const tv = document.getElementById('tbView'); if (tv) tv.textContent = ({ home: 'Inicio', mods: 'Mods', news: 'Novedades', friends: 'Amigos', settings: 'Ajustes' })[name] || '';
     document.querySelectorAll('.view').forEach((v) => { v.hidden = v.dataset.view !== name; });
     document.querySelectorAll('.nav-btn').forEach((b) => b.setAttribute('aria-current', String(b.dataset.view === name)));
     if (name === 'mods') renderMods();
     if (name === 'news') { renderNews(); markNewsSeen(); }
     if (name === 'settings') loadSettingsView();
+    document.dispatchEvent(new CustomEvent('atenas:view', { detail: name }));
   }
+  window.atenasShowView = showView;
 
   // ───────── cuenta ─────────
+  // Cara del jugador; si no se encuentra la skin (no premium, sin internet o servicio caído) se muestra la cara de Steve
+  function setFace(av, name) {
+    av.textContent = String(name || '?').slice(0, 1).toUpperCase();
+    const show = (src, onFail) => {
+      const img = new Image();
+      img.alt = '';
+      img.onload = () => av.replaceChildren(img);
+      if (onFail) img.onerror = onFail;
+      img.src = src;
+    };
+    show('https://mc-heads.net/avatar/' + encodeURIComponent(name) + '/64', () => show('steve.png'));
+  }
+
   function renderAccount() {
     const a = state.account;
     $('accName').textContent = a ? a.name : 'Sin sesión';
     $('accKind').textContent = a ? (a.kind === 'offline' ? 'No premium' : 'Microsoft') : '';
-    const av = $('avatar');
-    av.textContent = a ? a.name.slice(0, 1).toUpperCase() : '?';
-    if (a) {
-      const show = (src, onFail) => {
-        const img = new Image();
-        img.alt = '';
-        img.onload = () => av.replaceChildren(img);
-        if (onFail) img.onerror = onFail;
-        img.src = src;
-      };
-      const steve = () => show('steve.png');
-      // Si no se encuentra la skin (no premium, sin internet o servicio caído) se muestra la cara de Steve
-      show('https://mc-heads.net/avatar/' + encodeURIComponent(a.name) + '/64', steve);
-    }
-    $('gate').hidden = !!a;
-    if (!a) $('offlineName').focus();
+    if (a) setFace($('avatar'), a.name); else $('avatar').textContent = '?';
+    const adding = !!a && state.adding;
+    const gateOpen = !a || adding;
+    $('gate').hidden = !gateOpen;
+    $('gateCancel').hidden = !adding;
+    $('gateTitle').textContent = adding ? 'Añadir cuenta' : 'Bienvenido a Atenas';
+    $('gateLead').textContent = adding ? 'Inicia sesión con otra cuenta. La actual sigue guardada y puedes volver a ella cuando quieras.' : 'Elige cómo quieres jugar.';
+    if (gateOpen) $('offlineName').focus();
   }
 
   function showGateError(msg) {
@@ -127,6 +136,7 @@
     $('btnMicrosoft').disabled = true;
     try {
       state.account = await call(api.login);
+      state.adding = false;
       renderAccount();
       refreshSelected();
     } catch (e) {
@@ -141,6 +151,8 @@
     showGateError('');
     try {
       state.account = await call(api.loginOffline, $('offlineName').value);
+      state.adding = false;
+      $('offlineName').value = '';
       renderAccount();
       refreshSelected();
     } catch (e) {
@@ -148,29 +160,193 @@
     }
   }
 
-  async function switchAccount() {
-    await call(api.logout);
-    state.account = null;
-    showView('home');
+  // ───────── menú de la cuenta (cambiar, añadir, cerrar sesión) ─────────
+  const accMenuOpen = () => !$('accMenu').hidden;
+  function closeAccMenu() {
+    $('accMenu').hidden = true;
+    $('account').setAttribute('aria-expanded', 'false');
+  }
+  function placeAccMenu() {
+    const r = $('account').getBoundingClientRect();
+    const m = $('accMenu');
+    m.style.top = Math.round(r.bottom + 8) + 'px';
+    m.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+  }
+  function renderAccList(list) {
+    const others = (list || []).filter((x) => !x.active);
+    $('amOthersSep').hidden = $('amOthersLabel').hidden = $('amList').hidden = !others.length;
+    $('amList').replaceChildren(...others.map((x) => {
+      const row = document.createElement('div');
+      row.className = 'am-row';
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = 'am-acc';
+      pick.setAttribute('role', 'menuitem');
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      setFace(av, x.name);
+      const who = document.createElement('div');
+      who.className = 'am-who';
+      const n = document.createElement('strong');
+      n.textContent = x.name;
+      const k = document.createElement('span');
+      k.textContent = x.kind === 'offline' ? 'No premium' : 'Microsoft';
+      who.append(n, k);
+      pick.append(av, who);
+      pick.addEventListener('click', () => switchToAccount(x.id));
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'am-del';
+      del.title = 'Quitar de la lista';
+      del.setAttribute('aria-label', 'Quitar ' + x.name + ' de la lista');
+      del.textContent = '×';
+      del.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        try { renderAccList((await call(api.accounts.remove, x.id)).list); } catch (e) { toast(e.message, 'error'); }
+      });
+      row.append(pick, del);
+      return row;
+    }));
+  }
+  async function openAccMenu() {
+    const a = state.account;
+    if (!a) return;
+    $('amName').textContent = a.name;
+    $('amKind').textContent = a.kind === 'offline' ? 'No premium' : 'Microsoft';
+    setFace($('amAvatar'), a.name);
+    renderAccList([]);
+    placeAccMenu();
+    $('accMenu').hidden = false;
+    $('account').setAttribute('aria-expanded', 'true');
+    try { renderAccList((await call(api.accounts.list)).list); } catch { /* sin lista: solo se ven las acciones */ }
+  }
+  async function switchToAccount(id) {
+    closeAccMenu();
+    try {
+      const d = await call(api.accounts.switchTo, id);
+      state.account = d.active;
+      renderAccount();
+      refreshSelected();
+      toast('Ahora juegas como ' + d.active.name);
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  function startAddAccount() {
+    closeAccMenu();
+    showGateError('');
+    state.adding = true;
     renderAccount();
+  }
+  function cancelAddAccount() {
+    state.adding = false;
+    showGateError('');
+    renderAccount();
+  }
+  async function signOut() {
+    closeAccMenu();
+    try {
+      const next = await call(api.logout);
+      state.account = next;
+      state.adding = false;
+      showView('home');
+      renderAccount();
+      if (next) { refreshSelected(); toast('Sesión cerrada. Ahora juegas como ' + next.name); }
+    } catch (e) { toast(e.message, 'error'); }
   }
 
   // ───────── packs ─────────
-  function renderPacks() {
-    const nav = $('packs');
-    nav.replaceChildren();
-    for (const p of state.packs) {
+  const hueOf = (id) => { if (/atenas/i.test(String(id))) return 268; let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  const statusInfo = (s) => !s ? { key: 'loading', text: 'Comprobando…' } : s.offline ? { key: 'offline', text: 'Sin internet' } : s.status === 'update' ? { key: 'update', text: 'Actualización' } : s.status === 'not-installed' ? { key: 'new', text: 'Sin instalar' } : { key: 'ok', text: 'Al día' };
+
+
+  const artOf = (p, s) => window.AtenasArt.cover({
+    id: p.id, name: (s && s.name) || p.name, minecraft: (s && s.minecraft) || p.minecraft,
+    loader: (s && s.loader) || (p.loader && p.loader.type) || '', image: (s && s.image) || p.image,
+  });
+
+  // Fila de versiones en Inicio: una tarjeta con ilustración por modpack
+  function renderVersions() {
+    const row = $('verRow');
+    if (!row) return;
+    row.replaceChildren();
+    $('verCount').textContent = state.packs.length ? `${state.packs.length} disponible${state.packs.length === 1 ? '' : 's'}` : '';
+    state.packs.forEach((p) => {
       const s = state.summaries[p.id];
-      const tab = el('button', {
-        class: 'pack-tab',
-        role: 'tab',
-        'aria-selected': String(p.id === state.selected),
+      const st = statusInfo(s);
+      const name = (s && s.name) || p.name || p.id;
+      const art = el('div', { class: 'ver-art' }, el('span', { class: 'ver-status', 'data-k': st.key, text: st.text }));
+      art.style.setProperty('--art', `url("${artOf(p, s)}")`);
+      const card = el('button', {
+        class: 'ver-card', type: 'button', 'aria-pressed': String(p.id === state.selected), title: name,
         onclick: () => selectPack(p.id),
-      }, el('span', { text: (s && s.name) || p.name || p.id }));
-      if (s && s.status === 'update') tab.append(el('i', { class: 'badge', title: 'Hay una actualización' }));
-      nav.append(tab);
-    }
+      }, art, el('div', { class: 'ver-body' },
+        el('b', { text: name }),
+        el('span', { class: 'muted', text: `Minecraft ${(s && s.minecraft) || p.minecraft || '—'}` + (s && s.modCount ? ` · ${s.modCount} mods` : '') })));
+      row.append(card);
+    });
   }
+
+  function renderPacks() {
+    const cur = state.packs.find((p) => p.id === state.selected);
+    const s = state.summaries[state.selected];
+    $('psName').textContent = (s && s.name) || (cur && cur.name) || 'Elegir modpack';
+    const ico = $('psIco');
+    ico.textContent = modInitial((s && s.name) || (cur && cur.name) || 'A');
+    ico.style.setProperty('--h', String(hueOf(state.selected || 'a')));
+    const flag = $('psFlag');
+    const upd = state.packs.some((p) => (state.summaries[p.id] || {}).status === 'update');
+    flag.hidden = !upd;
+    flag.title = 'Hay una actualización disponible';
+    $('packSelect').disabled = state.packs.length === 0;
+    $('packSelect').dataset.single = state.packs.length === 1 ? '1' : '';
+    renderVersions();
+    if (!$('picker').hidden) renderPicker();
+  }
+
+  // Selector tipo galería: una tarjeta por modpack con su estado, versión y tiempo jugado
+  function renderPicker() {
+    const grid = $('pickerGrid');
+    grid.replaceChildren();
+    $('picker').dataset.few = state.packs.length <= 2 ? String(state.packs.length) : '';
+    state.packs.forEach((p, i) => {
+      const s = state.summaries[p.id];
+      const st = statusInfo(s);
+      const name = (s && s.name) || p.name || p.id;
+      const desc = (s && s.description) || p.description || '';
+      const loader = s ? String(s.loader || 'vanilla').split(' ')[0] : '';
+      const tags = [];
+      tags.push(el('span', { class: 'pk-tag', text: 'Minecraft ' + ((s && s.minecraft) || p.minecraft || '—') }));
+      if (loader) tags.push(el('span', { class: 'pk-tag', text: loader.charAt(0).toUpperCase() + loader.slice(1) }));
+      if (s && s.modCount) tags.push(el('span', { class: 'pk-tag', text: `${s.modCount} mods` }));
+      const played = (state.settings.playtime || {})[p.id];
+      const cover = el('div', { class: 'pk-cover' },
+        el('span', { class: 'pk-status', 'data-k': st.key, text: st.text }),
+        p.id === state.selected ? el('span', { class: 'pk-check', 'aria-hidden': 'true', text: '✓' }) : null);
+      cover.style.setProperty('--h', String(hueOf(p.id)));
+      cover.style.setProperty('--art', `url("${artOf(p, s)}")`);
+      const card = el('button', {
+        class: 'pk-card', type: 'button', 'aria-pressed': String(p.id === state.selected),
+        onclick: () => { closePicker(); selectPack(p.id); },
+      },
+        cover,
+        el('div', { class: 'pk-body' },
+          el('h4', { text: name }),
+          el('p', { class: 'pk-desc', text: desc || 'Modpack de Atenas.' }),
+          el('div', { class: 'pk-tags' }, ...tags),
+          el('div', { class: 'pk-foot' },
+            el('span', { class: 'muted', text: played ? 'Jugado ' + fmtTime(played) : (p.server || (s && s.server) ? 'Con servidor propio' : 'Sin jugar aún') }),
+            el('span', { class: 'pk-cta', text: p.id === state.selected ? 'Elegido' : 'Elegir' }))));
+      card.style.setProperty('--i', String(Math.min(i, 8)));
+      grid.append(card);
+    });
+  }
+  function openPicker() {
+    if (!state.packs.length) return;
+    renderPicker();
+    $('picker').hidden = false;
+    const sel = $('pickerGrid').querySelector('[aria-pressed="true"]') || $('pickerGrid').firstElementChild;
+    if (sel) sel.focus();
+  }
+  function closePicker() { $('picker').hidden = true; $('packSelect').focus(); }
 
   async function selectPack(id) {
     if (state.busy || id === state.selected) return;
@@ -188,7 +364,7 @@
       state.summaries[id] = await call(api.checkPack, id);
     } catch (e) {
       showEmpty({
-        title: e.code === 'NO_MANIFEST' ? 'Modpack sin publicar' : e.code === 'NO_CONNECTION' ? 'Sin conexión' : 'No se pudo cargar el modpack',
+        title: e.code === 'NO_MANIFEST' ? 'Modpack sin publicar' : e.code === 'NO_RELEASE' ? 'Cliente sin publicar' : e.code === 'NO_CONNECTION' ? 'Sin conexión' : 'No se pudo cargar el modpack',
         text: e.message,
         retry: true,
       });
@@ -232,6 +408,7 @@
     $('hero').hidden = false;
     $('dock').hidden = false;
 
+    { const pk = state.packs.find((x) => x.id === s.packId) || { id: s.packId }; $('packArt').style.setProperty('--art', `url("${artOf(pk, s)}")`); $('artBadge').textContent = `Minecraft ${s.minecraft}`; }
     $('packMeta').textContent = s.server ? `Servidor · ${s.server}` : 'Modpack';
     $('packName').textContent = s.name;
     $('packDesc').textContent = s.description;
@@ -262,7 +439,9 @@
     const play = $('btnPlay');
     play.dataset.mode = needs ? 'update' : '';
     $('playLabel').textContent = s.status === 'not-installed' ? 'Instalar y jugar' : needs ? 'Actualizar y jugar' : 'Jugar';
-    $('playSub').textContent = s.status === 'not-installed' ? `Descarga ${fmtBytes(s.bytes)}` : needs ? `Descarga ${fmtBytes(s.bytes)}` : (s.server ? 'Entra directo al servidor' : '');
+    const withOf = s.packId === 'atenas-client' && state.settings.optifine !== false;
+    const base = s.packId === 'atenas-client' ? `Atenas Client ${s.minecraft}${withOf ? ' con OptiFine' : ''}` : (s.server ? 'Entra directo al servidor' : '');
+    $('playSub').textContent = (s.status === 'not-installed' || needs) ? `Descarga ${fmtBytes(s.bytes)}${base ? ' · ' + base : ''}` : base;
     const upd = $('btnUpdate');
     upd.hidden = !needs;
     upd.title = `Descarga ${fmtBytes(s.bytes)} sin abrir el juego`;
@@ -502,7 +681,7 @@
   function appendLog(line) {
     logLines.push(line);
     if (logLines.length > 500) logLines.shift();
-    if ($('log').hidden || logTimer) return;
+    if ($('logModal').hidden || logTimer) return;
     logTimer = setTimeout(() => { logTimer = null; paintLog(); }, 200);
   }
   function paintLog() {
@@ -512,17 +691,19 @@
   }
   function clearLog() {
     logLines.length = 0;
-    $('log').textContent = '';
+    $('log').textContent = $('logModal').hidden ? '' : LOG_EMPTY;
   }
-  function toggleLog() {
-    const pre = $('log');
-    pre.hidden = !pre.hidden;
-    $('btnLog').setAttribute('aria-expanded', String(!pre.hidden));
-    if (!pre.hidden) {
-      if (logLines.length) paintLog();
-      else pre.textContent = 'El registro aparecerá aquí cuando juegues.';
-    }
+  const LOG_EMPTY = 'El registro aparecerá aquí cuando juegues.';
+  function openLog() {
+    $('logModal').hidden = false;
+    $('btnLog').setAttribute('aria-expanded', 'true');
+    if (logLines.length) paintLog(); else $('log').textContent = LOG_EMPTY;
   }
+  function closeLog() {
+    $('logModal').hidden = true;
+    $('btnLog').setAttribute('aria-expanded', 'false');
+  }
+  function toggleLog() { if ($('logModal').hidden) openLog(); else closeLog(); }
 
   // ───────── ajustes ─────────
   function loadSettingsView() {
@@ -536,11 +717,12 @@
     $('optMin').checked = state.settings.minimizeOnPlay !== false;
     $('optFx').checked = state.settings.fx !== false;
     $('optNotify').checked = state.settings.notify !== false;
+    $('optOptifine').checked = state.settings.optifine !== false;
     $('optFullscreen').checked = state.settings.fullscreen === true;
     $('optAutoStart').checked = state.settings.autoStart === true;
     $('optHud').checked = state.settings.hud !== false;
     $('extraJvm').value = state.settings.extraJvm || '';
-    document.querySelectorAll('.theme').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.theme === (state.settings.theme || 'cyber'))));
+    document.querySelectorAll('.theme').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.theme === (state.settings.theme || 'atenas'))));
     $('appVersion').textContent = `Atenas Client ${state.appVersion}`;
   }
   function updateRamLabel() {
@@ -550,7 +732,7 @@
     state.settings = await call(api.setSettings, patch).catch(() => state.settings);
   }
   function applyTheme() {
-    document.documentElement.dataset.theme = state.settings.theme || 'cyber';
+    document.documentElement.dataset.theme = state.settings.theme || 'atenas';
     document.documentElement.dataset.hud = state.settings.hud === false ? 'off' : 'on';
     fx.refreshColors();
   }
@@ -628,7 +810,7 @@
     $('btnPlay').addEventListener('click', doPlay);
     $('btnUpdate').addEventListener('click', doUpdateOnly);
     $('btnLog').addEventListener('click', toggleLog);
-    $('btnSwitch').addEventListener('click', switchAccount);
+    $('btnSwitch').addEventListener('click', startAddAccount);
     $('btnRetry').addEventListener('click', () => (state.packs.length ? refreshSelected() : loadPacks()));
     $('btnToSettings').addEventListener('click', () => showView('settings'));
     $('qIp').addEventListener('click', () => { const s = state.summaries[state.selected]; if (s && s.server) copyText(s.server, 'IP copiada'); });
@@ -646,7 +828,25 @@
       applyTheme();
       document.querySelectorAll('.theme').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
     }));
-    $('account').addEventListener('click', () => showView('settings'));
+    $('account').addEventListener('click', () => { if (accMenuOpen()) closeAccMenu(); else openAccMenu(); });
+    $('account').setAttribute('aria-haspopup', 'menu');
+    $('account').setAttribute('aria-expanded', 'false');
+    $('amAdd').addEventListener('click', startAddAccount);
+    $('amSettings').addEventListener('click', () => { closeAccMenu(); showView('settings'); });
+    $('amLogout').addEventListener('click', signOut);
+    $('gateCancel').addEventListener('click', cancelAddAccount);
+    document.addEventListener('pointerdown', (e) => { if (accMenuOpen() && !e.target.closest('#accMenu, #account')) closeAccMenu(); });
+    window.addEventListener('resize', () => { if (accMenuOpen()) placeAccMenu(); });
+    $('logClose').addEventListener('click', closeLog);
+    $('logClear').addEventListener('click', clearLog);
+    $('logCopy').addEventListener('click', () => { if (logLines.length) copyText(logLines.join('\n'), 'Registro copiado'); else toast('Todavía no hay nada que copiar'); });
+    $('logModal').addEventListener('pointerdown', (e) => { if (e.target === $('logModal')) closeLog(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (accMenuOpen()) closeAccMenu();
+      else if (!$('logModal').hidden) closeLog();
+      else if (state.adding) cancelAddAccount();
+    });
     $('btnFolder').addEventListener('click', () => state.selected && call(api.openFolder, state.selected).catch((e) => toast(e.message, 'error')));
     $('modSearch').addEventListener('input', renderMods);
     $('ramRange').addEventListener('input', updateRamLabel);
@@ -654,16 +854,30 @@
     $('optJvm').addEventListener('change', (e) => patchSettings({ jvmOptimized: e.target.checked }));
     $('optMin').addEventListener('change', (e) => patchSettings({ minimizeOnPlay: e.target.checked }));
     $('optFx').addEventListener('change', async (e) => { await patchSettings({ fx: e.target.checked }); applyFx(); });
+    $('optOptifine').addEventListener('change', async (e) => { await patchSettings({ optifine: e.target.checked }); renderSelected(); });
     $('optFullscreen').addEventListener('change', (e) => patchSettings({ fullscreen: e.target.checked }));
     $('optAutoStart').addEventListener('change', (e) => patchSettings({ autoStart: e.target.checked }));
     $('optHud').addEventListener('change', async (e) => { await patchSettings({ hud: e.target.checked }); applyTheme(); });
     $('extraJvm').addEventListener('change', async (e) => { await patchSettings({ extraJvm: e.target.value }); e.target.value = state.settings.extraJvm || ''; toast('Argumentos guardados'); });
     document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+    $('packSelect').addEventListener('click', openPicker);
+    $('pickerClose').addEventListener('click', closePicker);
+    $('picker').addEventListener('pointerdown', (e) => { if (e.target === $('picker')) closePicker(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('picker').hidden) closePicker(); });
+    $('hfOpen').addEventListener('click', () => showView('friends'));
     $('winMin').addEventListener('click', () => api.win.minimize());
     $('winMax').addEventListener('click', () => api.win.maximize());
     $('winClose').addEventListener('click', () => api.win.close());
 
     api.onGameState(onGameState);
+    // el juego agregó o quitó una cuenta (pantalla Cuentas del cliente): se actualiza el nombre de arriba y la lista
+    api.onAccountChanged((d) => {
+      state.account = d.active || null;
+      state.adding = false;
+      renderAccount();
+      if (state.account) refreshSelected();
+      if (accMenuOpen()) closeAccMenu();
+    });
     api.onGameLog(appendLog);
     api.onProgress(onProgress);
     api.onUpdateAvailable((s) => {
@@ -707,11 +921,13 @@
       ? state.settings.selectedPack
       : state.packs[0].id;
     renderPacks();
+    const firstTime = !state.packs.some((p) => p.id === state.settings.selectedPack) && state.packs.length > 1 && !!state.account;
     await refreshSelected();
     for (const p of state.packs) {
       if (p.id === state.selected) continue;
       call(api.checkPack, p.id).then((s) => { state.summaries[p.id] = s; renderPacks(); }).catch(() => {});
     }
+    if (firstTime) openPicker();
   }
 
   async function repairPack() {

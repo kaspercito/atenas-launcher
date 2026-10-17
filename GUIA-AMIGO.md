@@ -49,3 +49,6 @@ Encuentra sola la carpeta del pack. Si te la pregunta, escribe `D:\atenas\atenas
 - Si algo falla, copia el mensaje de error tal cual y pásalo en el chat.
 
 Guía completa: `ADMIN-GUIA.md`.
+
+## Amigos y chat dentro del juego
+En el Atenas Client pulsa **Shift+Tab** (o el botón *Amigos* del menú principal y del menú de pausa) para ver tus amigos, aceptar solicitudes y chatear sin salir de Minecraft. Los avisos de mensajes y solicitudes salen arriba a la derecha. Se pueden apagar en el menú Atenas (RShift) → *Acerca de*.

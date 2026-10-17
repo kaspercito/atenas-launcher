@@ -1,0 +1,46 @@
+/* Ventana de carga de Atenas Client: tapa la pantalla de Forge/Minecraft. Mismo lenguaje visual que el launcher. */
+@font-face { font-family: "Cinzel"; font-weight: 700; src: url("../assets/fonts/cinzel-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../assets/fonts/inter-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("../assets/fonts/inter-latin-600-normal.woff2") format("woff2"); }
+:root { --acc: 139, 92, 246; --cy: 34, 211, 238; --pk: 236, 72, 153; --ease: cubic-bezier(.2, .8, .2, 1); }
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; background: transparent; overflow: hidden; user-select: none; font: 400 13px "Inter", system-ui, sans-serif; color: #8a9bb8; }
+body { padding: 0; background: #07060f; }
+
+.stage { position: relative; height: 100%; overflow: hidden; display: grid; place-items: center;
+  background: linear-gradient(180deg, #07060f, #1b1140 120%); animation: in .4s var(--ease) both; }
+.stars { position: absolute; inset: 0; opacity: .8; animation: drift 90s linear infinite;
+  background:
+    radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent 60%), radial-gradient(1px 1px at 28% 62%, #cfe0ff, transparent 60%),
+    radial-gradient(1.4px 1.4px at 44% 30%, #fff, transparent 60%), radial-gradient(1px 1px at 61% 74%, #e6dcff, transparent 60%),
+    radial-gradient(1.3px 1.3px at 78% 22%, #fff, transparent 60%), radial-gradient(1px 1px at 90% 55%, #cfe0ff, transparent 60%),
+    radial-gradient(1px 1px at 8% 82%, #fff, transparent 60%), radial-gradient(1.2px 1.2px at 52% 8%, #e6dcff, transparent 60%); }
+.grid { position: absolute; left: -20%; right: -20%; bottom: -2%; height: 38%; opacity: .55; transform: perspective(300px) rotateX(58deg); transform-origin: 50% 100%;
+  background: linear-gradient(rgba(var(--acc), .5) 1px, transparent 1px) 0 0 / 100% 36px, linear-gradient(90deg, rgba(var(--acc), .5) 1px, transparent 1px) 0 0 / 56px 100%;
+  -webkit-mask-image: linear-gradient(0deg, transparent, #000 70%); animation: scroll 2.4s linear infinite; }
+.meander { position: absolute; top: 0; left: 0; right: 0; height: 16px; opacity: .5; background: url("../assets/meander.svg") repeat-x center / auto 16px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent); }
+.x { position: absolute; top: 14px; right: 14px; width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #7f8db0; font-size: 19px; cursor: pointer; z-index: 3; -webkit-app-region: no-drag; }
+.x:hover { background: rgba(255, 80, 100, .85); color: #fff; }
+
+.center { position: relative; display: flex; flex-direction: column; align-items: center; margin-top: -14px; }
+.mark { position: relative; width: 160px; height: 160px; display: grid; place-items: center; }
+.ring { position: absolute; inset: 0; overflow: visible; }
+.track { fill: none; stroke: rgba(180, 160, 255, .14); stroke-width: 3; }
+.val { fill: none; stroke: url(#g); stroke-width: 5; stroke-linecap: round; transition: stroke-dasharray .4s linear; filter: drop-shadow(0 0 8px rgba(var(--acc), .85)); }
+.logo { position: relative; border-radius: 22px; filter: drop-shadow(0 0 18px rgba(var(--cy), .5)); animation: float 5s ease-in-out infinite; }
+h1 { margin-top: 16px; font: 700 34px "Cinzel", Georgia, serif; letter-spacing: .22em; margin-right: -.22em; color: #e8f1ff; text-shadow: 0 0 28px rgba(var(--acc), .75); white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; }
+.eyebrow { margin-top: 4px; font-size: 11px; letter-spacing: .5em; margin-right: -.5em; color: rgb(var(--cy)); }
+.status { margin-top: 22px; font-size: 14px; letter-spacing: .04em; color: #c9d4f0; min-height: 20px; }
+.bar { margin-top: 12px; width: 320px; height: 5px; border-radius: 9px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 9px; transition: width .4s linear; background: linear-gradient(90deg, rgb(var(--cy)), rgb(var(--acc)), rgb(var(--pk))); box-shadow: 0 0 14px rgba(var(--acc), .8); }
+.pct { margin-top: 8px; font: 600 12px "Inter", sans-serif; font-variant-numeric: tabular-nums; color: #7f8db0; }
+.tip { position: absolute; bottom: 38px; left: 0; right: 0; text-align: center; font-size: 11.5px; letter-spacing: .04em; color: #5d6b92; }
+
+@keyframes in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes float { 50% { transform: translateY(-5px); } }
+@keyframes scroll { to { background-position: 0 36px, 56px 0; } }
+@keyframes drift { to { transform: translateY(40px); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+.hide-hint { position: absolute; bottom: 18px; left: 0; right: 0; text-align: center; font-size: 10.5px; letter-spacing: .08em; color: #4a5272; }

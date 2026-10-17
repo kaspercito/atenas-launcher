@@ -1,3 +1,15 @@
+# Novedades v1.3.0 · Amigos con solicitudes y chat
+
+- **Solicitudes de amistad:** escribes el nick, la otra persona acepta o rechaza. Ya no se agrega a nadie sin permiso.
+- **Chat privado** entre amigos, en el launcher y dentro del juego con **Shift+Tab** (también desde el menú principal y el de pausa del Atenas Client).
+- **Avisos** de mensajes, solicitudes y amigos que se conectan, en el launcher (Windows) y en pantalla dentro de Minecraft.
+- La insignia numérica de Amigos ya no tapa el ícono; el selector de modpack se ve bien con 1 o 2 packs.
+- Todo corre en un Worker de Cloudflare (gratis) que **reemplaza** al servicio de presencia viejo.
+
+**Qué tienes que hacer tú (una sola vez):** sigue `social-worker/LEEME.md` (crear la base D1 `atenas-social` y `npx wrangler deploy`). Mientras no lo hagas, el launcher dirá "servicio no disponible". La URL va en `launcher.config.json` → `"socialUrl"`.
+
+---
+
 # Novedades v1.2.0 · Amigos
 
 **Qué cambia en la pestaña Amigos**
@@ -22,7 +34,7 @@
 ## 1. Actualización automática del launcher (arreglada)
 **Qué fallaba:** solo se comprobaba una vez al abrir, sin avisos y los errores se ocultaban. Además, si el tag de GitHub no coincide con la `version` de `package.json`, el launcher instalado nunca ve la versión nueva.
 
-**Ahora:** comprueba al abrir y cada 30 min, muestra un aviso con barra de descarga y botón **Reiniciar y actualizar**, y hay un botón en Ajustes → *Buscar actualizaciones*. Los errores quedan en `%APPDATA%\Atenas Launcher\updater.log`. El workflow falla si el tag no coincide con la versión.
+**Ahora:** comprueba al abrir y cada 30 min, muestra un aviso con barra de descarga y botón **Reiniciar y actualizar**, y hay un botón en Ajustes → *Buscar actualizaciones*. Los errores quedan en `%USERPROFILE%\.atenasclient\logs\updater.log`. El workflow falla si el tag no coincide con la versión.
 
 **Para publicar una versión nueva:**
 1. Sube `version` en `package.json` (ej. `1.1.3`).
@@ -36,11 +48,8 @@ Solo funciona en el launcher **instalado** (no con `npm start`). Los modpacks se
 3. En Rich Presence → Art Assets sube una imagen con el nombre `icon`.
 Se activa/desactiva en Ajustes. Muestra "En el launcher" o "Jugando <modpack>" con el tiempo.
 
-## 3. Amigos
-Pestaña **Amigos**: añades nicks de Minecraft y ves quién está **en el servidor** (sale del ping, que solo lista hasta 12 jugadores). Para ver también "Jugando <pack>" / "En el launcher":
-1. Cloudflare → Workers & Pages → pega `docs/presence-worker.js`, crea un KV llamado `PRESENCE` y enlázalo.
-2. Pon la URL del Worker en `launcher.config.json` → `"presenceUrl"`.
-GitHub solo hospeda archivos estáticos, por eso la presencia en vivo necesita este mini servicio (gratis). Los nicks no se verifican: sirve para amigos, no para seguridad.
+## 3. Amigos y chat
+Pestaña **Amigos**: envías solicitudes por nick, ves quién está en el launcher o jugando (y en qué servidor) y chateas. Se activa una vez con `social-worker/LEEME.md` (Worker de Cloudflare + base D1, gratis) y la URL en `launcher.config.json` → `"socialUrl"`. Los nicks no se verifican con Mojang: sirve para amigos, no para seguridad. El sistema anterior (`presence/`, `presenceUrl`, KV `PRESENCE`) ya no se usa.
 
 ## 4. Instalador
 `build/installer.nsh`: textos de bienvenida y final propios, enlace a GitHub y, al desinstalar a mano, pregunta si borrar también modpacks, mundos y ajustes (las actualizaciones nunca borran nada). Genera el .exe con el tag como siempre.

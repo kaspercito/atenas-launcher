@@ -28,7 +28,7 @@ async function fetchJson(url) {
  * Descarga url -> dest (vía archivo .part), verificando sha256 si se indica.
  * onBytes(n) se llama con los bytes recibidos en cada trozo.
  */
-async function downloadFile(url, dest, { sha256, onBytes, retries = 3 } = {}) {
+async function downloadFile(url, dest, { sha256, onBytes, retries = 3, headers } = {}) {
   assertHttp(url);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   const tmp = dest + '.part';
@@ -40,7 +40,7 @@ async function downloadFile(url, dest, { sha256, onBytes, retries = 3 } = {}) {
     let stall = setTimeout(() => ctl.abort(), 30000);
     const kick = () => { clearTimeout(stall); stall = setTimeout(() => ctl.abort(), 30000); };
     try {
-      const res = await fetch(url, { signal: ctl.signal });
+      const res = await fetch(url, { signal: ctl.signal, headers });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const hash = crypto.createHash('sha256');
       const source = Readable.fromWeb(res.body);
@@ -80,4 +80,12 @@ function sha256File(file) {
   });
 }
 
-module.exports = { fetchJson, downloadFile, sha256File };
+/** Lee una pagina como texto (para paginas HTML). Con un User-Agent normal: algunos sitios rechazan el de Node. */
+async function fetchText(url, { headers, timeoutMs = 15000 } = {}) {
+  assertHttp(url);
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AtenasClient', ...headers }, signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`HTTP ${res.status} al leer ${url}`);
+  return res.text();
+}
+
+module.exports = { fetchJson, fetchText, downloadFile, sha256File };
