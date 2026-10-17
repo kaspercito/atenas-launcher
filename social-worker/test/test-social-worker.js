@@ -23,8 +23,8 @@ const { makeD1 } = require('./d1shim');
 
   // registro por primer uso + nick ocupado
   assert.strictEqual((await call('Alice', '/sync')).ok, true); ok('Alice se registra');
-  const steal = await call('Alice', '/sync', {}, 'z'.repeat(32));
-  assert.strictEqual(steal.status, 403); assert.strictEqual(steal.error, 'nick_taken'); ok('otro token no puede usar el nick');
+  const other = await call('Alice', '/sync', {}, 'z'.repeat(32));
+  assert.strictEqual(other.ok, true); ok('el nick es la identidad: otra PC / reinstalación entra sin bloqueo');
   assert.strictEqual((await call('alice', '/sync')).ok, true); ok('mayúsculas no cambian al dueño');
   assert.strictEqual((await call('x', '/sync')).status, 400); ok('nick inválido rechazado');
   await call('Bob', '/sync'); await call('Carol', '/sync');
@@ -116,21 +116,41 @@ const { makeD1 } = require('./d1shim');
   assert.strictEqual(env.DB.raw.prepare("SELECT COUNT(*) c FROM messages WHERE (sender='alice' AND recipient='bob') OR (sender='bob' AND recipient='alice')").get().c, 0);
   assert.strictEqual((await call('Alice', '/sync')).friends.some((x) => x.name === 'Bob'), false); ok('quitar amigo borra la amistad y el chat');
 
-  // nick abandonado se puede reclamar
-  env.DB.raw.prepare('UPDATE users SET launcher_ts = 0, game_ts = 0, created = ? WHERE name = ?').run(Date.now() - 40 * 86400000, 'carol');
-  assert.strictEqual((await call('Carol', '/sync', {}, 'q'.repeat(32))).ok, true); ok('nick sin uso 30 días se puede reclamar');
-
   // cosméticos
   await call('Alice', '/sync'); await call('Bob', '/sync');
   assert.strictEqual((await call('Alice', '/cosmetics/set', { cape: 'violeta', wings: 'neon', hat: 'Mal Id!' })).ok, true); ok('Alice guarda sus cosméticos');
   let cs = await call('Bob', '/cosmetics/get', { names: ['ALICE', 'nadie_xx', 'x', 'alice'] });
-  assert.deepStrictEqual(cs.players.alice, { cape: 'violeta', wings: 'neon', hat: 'none' }); ok('Bob ve los de Alice (ids raros pasan a "none")');
+  assert.deepStrictEqual(cs.players.alice, { cape: 'violeta', wings: 'neon', hat: 'none', pet: 'none' }); ok('Bob ve los de Alice (ids raros pasan a "none")');
   assert.strictEqual(cs.players.nadie_xx, undefined); ok('quien no tiene cosméticos no aparece');
   await call('Alice', '/cosmetics/set', { cape: 'oro', wings: 'none', hat: 'corona' });
   cs = await call('Bob', '/cosmetics/get', { names: ['alice'] });
-  assert.deepStrictEqual(cs.players.alice, { cape: 'oro', wings: 'none', hat: 'corona' }); ok('cambiar cosméticos reemplaza los anteriores');
+  assert.deepStrictEqual(cs.players.alice, { cape: 'oro', wings: 'none', hat: 'corona', pet: 'none' }); ok('cambiar cosméticos reemplaza los anteriores');
+  // mascota
+  await call('Alice', '/cosmetics/set', { cape: 'oro', wings: 'none', hat: 'corona', pet: 'zorro' });
+  cs = await call('Bob', '/cosmetics/get', { names: ['alice'] });
+  assert.strictEqual(cs.players.alice.pet, 'zorro'); ok('el Worker guarda la mascota');
+  await call('Alice', '/cosmetics/set', { cape: 'hielo', wings: 'angel', hat: 'none' }); // cliente viejo: no manda "pet"
+  cs = await call('Bob', '/cosmetics/get', { names: ['alice'] });
+  assert.deepStrictEqual(cs.players.alice, { cape: 'hielo', wings: 'angel', hat: 'none', pet: 'zorro' }); ok('un cliente viejo (sin \"pet\") no borra la mascota');
+  await call('Alice', '/cosmetics/set', { cape: 'hielo', wings: 'angel', hat: 'none', pet: 'none' });
+  cs = await call('Bob', '/cosmetics/get', { names: ['alice'] });
+  assert.strictEqual(cs.players.alice.pet, 'none'); ok('quitar la mascota (\"none\") sí la quita');
+  await call('Alice', '/cosmetics/set', { pet: 'Mal Id!!' });
+  assert.strictEqual((await call('Bob', '/cosmetics/get', { names: ['alice'] })).players.alice.pet, 'none'); ok('mascota con id raro pasa a none');
+  // una fila vieja (guardada antes de existir \"pet\") se lee sin romper
+  env.DB.raw.prepare('INSERT OR REPLACE INTO cosmetics (name, data, ts) VALUES (?, ?, ?)').run('bob', JSON.stringify({ cape: 'oro', wings: 'none', hat: 'none' }), Date.now());
+  cs = await call('Carol', '/cosmetics/get', { names: ['bob'] });
+  assert.deepStrictEqual(cs.players.bob, { cape: 'oro', wings: 'none', hat: 'none' }); ok('una fila antigua sin \"pet\" se entrega tal cual (los clientes lo tratan como ninguna)');
+  await call('Bob', '/cosmetics/set', { hat: 'gorra' });
+  cs = await call('Carol', '/cosmetics/get', { names: ['bob'] });
+  assert.deepStrictEqual(cs.players.bob, { cape: 'oro', wings: 'none', hat: 'gorra', pet: 'none' }); ok('actualizar un solo campo conserva los demás');
   assert.deepStrictEqual((await call('Bob', '/cosmetics/get', { names: 'no-es-lista' })).players, {}); ok('lista inválida no rompe nada');
 
+  // poll liviano
+  await new Promise((r) => setTimeout(r, 520));
+  await call('Alice', '/friends/add', { to: 'Carol' });
+  let pl = await call('Carol', '/poll');
+  assert.strictEqual(pl.ok, true); assert.strictEqual(pl.incoming >= 0, true); ok('/poll responde con contadores');
   console.log('social worker: todo bien (' + n + ' comprobaciones)');
 })().catch((e) => { console.error(e); process.exit(1); });
 

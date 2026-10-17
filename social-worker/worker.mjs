@@ -14,7 +14,6 @@ const FRESH_MS = 120000;          // un aviso de presencia cuenta como "conectad
 const REWRITE_MS = 40000;         // la presencia igual no se reescribe hasta pasado este tiempo (cuida las escrituras gratis de D1)
 const MSG_COOLDOWN_MS = 500;
 const KEEP_MSGS = 200;            // mensajes que se guardan por conversación
-const STALE_CLAIM_MS = 30 * 86400000; // un nick sin actividad en 30 días puede reclamarlo otra instalación
 
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 class HttpError extends Error { constructor(status, code, message) { super(message); this.status = status; this.code = code; } }
@@ -30,8 +29,9 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS cosmetics (name TEXT PRIMARY KEY, data TEXT NOT NULL, ts INTEGER NOT NULL)',
 ];
 let schemaReady = null;
+function migrate(db) { return db.batch(SCHEMA.map((s) => db.prepare(s))); }
 function ensureSchema(db) {
-  if (!schemaReady) schemaReady = db.batch(SCHEMA.map((s) => db.prepare(s))).catch((e) => { schemaReady = null; throw e; });
+  if (!schemaReady) schemaReady = migrate(db).catch((e) => { schemaReady = null; throw e; });
   return schemaReady;
 }
 
@@ -49,26 +49,23 @@ function sameHash(a, b) {
   return d === 0;
 }
 
-/** Identifica (o registra la primera vez) a quien llama. Devuelve la fila del usuario. */
+/**
+ * Identifica (o registra la primera vez) a quien llama. Devuelve la fila del usuario.
+ * La identidad es el NICK de la cuenta: cualquier instalación o PC que entre con ese nick es esa misma persona,
+ * así que reinstalar o usar la cuenta en otra PC nunca bloquea nada y no hay que tocar la base de datos.
+ * (No se verifica con Mojang: sirve para un grupo de amigos, no como seguridad. La clave x-token solo se guarda de referencia.)
+ */
 async function authenticate(req, db, now) {
   const display = String(req.headers.get('x-name') || '').trim();
   const token = String(req.headers.get('x-token') || '');
   if (!NAME.test(display)) throw bad('bad_name', 'Nombre de Minecraft no válido.');
   if (token.length < 16 || token.length > 128) throw bad('bad_token', 'Falta el token de esta instalación.', 401);
   const key = lower(display);
-  const hash = await sha256(token);
   const row = await db.prepare('SELECT * FROM users WHERE name = ?').bind(key).first();
   if (!row) {
+    const hash = await sha256(token);
     await db.prepare('INSERT INTO users (name, display, token, created) VALUES (?, ?, ?, ?)').bind(key, display, hash, now).run();
     return { name: key, display, token: hash, launcher_ts: 0, game_ts: 0, l_playing: 0, pack: '', server: '', created: now };
-  }
-  if (!sameHash(row.token, hash)) {
-    const last = Math.max(row.launcher_ts, row.game_ts, row.created);
-    if (now - last > STALE_CLAIM_MS) {
-      await db.prepare('UPDATE users SET token = ?, display = ? WHERE name = ?').bind(hash, display, key).run();
-      return { ...row, token: hash, display };
-    }
-    throw bad('nick_taken', `El nick ${row.display} ya está registrado desde otra instalación de Atenas. Si es tuyo, abre el launcher y el cliente en la misma PC (comparten la clave).`, 403);
   }
   if (row.display !== display) { await db.prepare('UPDATE users SET display = ? WHERE name = ?').bind(display, key).run(); row.display = display; }
   return row;
@@ -151,10 +148,29 @@ const routes = {
     return snapshot(db, me, now);
   },
 
-  /** Cosméticos (capa, alas, sombrero) que elige cada jugador. Los ven todos los que usan el mod de Atenas. */
+  /**
+   * Consulta liviana (2 lecturas pequeñas) para enterarse rápido de mensajes o solicitudes nuevas sin bajar todo el estado.
+   * El launcher y el juego la llaman cada pocos segundos y solo piden /sync completo cuando algo cambió.
+   */
+  async '/poll'(db, me, body, now) {
+    const m = await db.prepare('SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS last FROM messages WHERE recipient = ? AND read = 0').bind(me.name).first();
+    const r = await db.prepare('SELECT COUNT(*) AS n FROM friends WHERE (a = ?1 OR b = ?1) AND state = \'pending\' AND requester != ?1').bind(me.name).first();
+    return { ok: true, now, unread: m.n, last: m.last, incoming: r.n };
+  },
+
+  /**
+   * Cosméticos (capa, alas, sombrero, mascota) que elige cada jugador. Los ven todos los que usan el mod de Atenas.
+   * Un campo que NO viene en la petición conserva su valor anterior: así un cliente viejo (que aún no manda "pet")
+   * no borra la mascota que elegiste desde uno nuevo.
+   */
   async '/cosmetics/set'(db, me, body, now) {
-    const clean = (v) => (/^[a-z0-9_]{1,24}$/.test(String(v || '')) ? String(v) : 'none');
-    const data = JSON.stringify({ cape: clean(body.cape), wings: clean(body.wings), hat: clean(body.hat) });
+    const valid = (v) => /^[a-z0-9_]{1,24}$/.test(String(v || ''));
+    const clean = (v) => (valid(v) ? String(v) : 'none');
+    const prev = await db.prepare('SELECT data FROM cosmetics WHERE name = ?').bind(me.name).first();
+    let old = {};
+    if (prev) { try { old = JSON.parse(prev.data) || {}; } catch { old = {}; } }
+    const pick = (k) => (body[k] === undefined ? clean(old[k]) : clean(body[k]));
+    const data = JSON.stringify({ cape: pick('cape'), wings: pick('wings'), hat: pick('hat'), pet: pick('pet') });
     await db.prepare('INSERT INTO cosmetics (name, data, ts) VALUES (?1, ?2, ?3) ON CONFLICT(name) DO UPDATE SET data = ?2, ts = ?3').bind(me.name, data, now).run();
     return { ok: true };
   },
@@ -249,7 +265,7 @@ const routes = {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (req.method === 'GET') return json({ name: 'atenas-social', v: 2, ok: true });
+    if (req.method === 'GET') return json({ name: 'atenas-social', v: 4, ok: true });
     if (req.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
     const handler = routes[url.pathname];
     if (!handler) return json({ ok: false, error: 'not_found', message: 'Ruta desconocida' }, 404);

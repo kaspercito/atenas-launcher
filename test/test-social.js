@@ -68,9 +68,10 @@ const { makeD1 } = require('../social-worker/test/d1shim');
     const none = createSocial({ url: '', file: path.join(tmp, 'd.json'), getName: () => 'Ana' });
     assert.strictEqual(none.configured, false);
     await assert.rejects(() => none.sync(), (e) => e.code === 'not_configured');
-    const thief = createSocial({ url, file: path.join(tmp, 'e.json'), getName: () => 'Ana' });
-    await assert.rejects(() => thief.sync(), (e) => e.code === 'nick_taken');
-    console.log('ok 5: errores (ya amigos, nick inválido, sin cuenta, sin internet, sin configurar, nick ajeno)');
+    const otherPc = createSocial({ url, file: path.join(tmp, 'e.json'), getName: () => 'Ana' });
+    assert.strictEqual((await otherPc.sync()).ok, true);
+    assert.strictEqual((await otherPc.poll()).ok, true);
+    console.log('ok 5: errores claros; la misma cuenta en otra PC / tras reinstalar entra sin bloqueo');
 
     // diferencias entre dos fotos: lo que dispara avisos
     const base = { friends: [{ key: 'ana', name: 'Ana', state: 'offline', unread: 0, preview: null }], incoming: [], outgoing: [{ key: 'luis', name: 'Luis' }] };

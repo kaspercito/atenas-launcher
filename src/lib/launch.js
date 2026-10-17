@@ -64,9 +64,13 @@ const OPTIMIZED_JVM_ARGS = [
   '-XX:+PerfDisableSharedMem',
 ];
 
-/** --quickPlayMultiplayer existe desde 1.20; antes (1.8.9, 1.12…) se entra con --server/--port. */
+/**
+ * Entrar directo al servidor al abrir el juego: DESACTIVADO por defecto. El servidor del pack aparece en Multijugador con una
+ * estrella (-Datenas.server, lo pone el mod). Solo si un pack lo pide con "autoJoin": true se usa
+ * --quickPlayMultiplayer (1.20+) o --server/--port (1.8.9, 1.12…).
+ */
 function quickPlayFor(manifest) {
-  if (!manifest.server) return null;
+  if (!manifest.server || manifest.autoJoin !== true) return null;
   const minor = Number((/^1\.(\d+)/.exec(manifest.minecraft || '') || [])[1]);
   return { type: minor && minor < 20 ? 'legacy' : 'multiplayer', identifier: manifest.server };
 }

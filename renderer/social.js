@@ -8,8 +8,10 @@
 
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const call = async (fn, ...a) => { const r = await fn(...a); if (!r.ok) { const e = new Error(r.message || r.error); e.code = r.error; throw e; } return r.data; };
-  const toast = (text, error, onClick) => {
-    const t = el('div', 'toast' + (error ? ' error' : '') + (onClick ? ' clickable' : ''), text);
+  const toast = (text, error, onClick, who) => {
+    const t = el('div', 'toast' + (error ? ' error' : '') + (onClick ? ' clickable' : '') + (who ? ' with-face' : ''));
+    if (who) t.append(face(who, 'sm'));
+    t.append(el('span', 'toast-t', text));
     if (onClick) t.addEventListener('click', () => { onClick(); t.remove(); });
     $('toasts').append(t); setTimeout(() => t.remove(), 6500);
   };
@@ -288,11 +290,11 @@
 
   function onEvents(d) {
     if (!d) return;
-    for (const r of d.requests) toast(`${r.name} te envió una solicitud de amistad`, false, () => window.atenasShowView('friends'));
+    for (const r of d.requests) toast(`${r.name} te envió una solicitud de amistad`, false, () => window.atenasShowView('friends'), r.name);
     for (const f of d.accepted) toast(`${f.name} aceptó tu solicitud`);
     for (const f of d.messages) {
       const viewingThis = S.viewing && S.selected === f.key && document.hasFocus();
-      if (!viewingThis) toast(`${f.name}: ${f.preview.body}`, false, () => { window.atenasShowView('friends'); openChat(f.key); });
+      if (!viewingThis) toast(`${f.name}: ${f.preview.body}`, false, () => { window.atenasShowView('friends'); openChat(f.key); }, f.name);
     }
   }
 
@@ -325,7 +327,7 @@
   $('hfReqs').addEventListener('click', () => window.atenasShowView('friends'));
   api.social.onUpdate((d) => applyState(d));
   api.social.onEvents(onEvents);
-  api.social.onOpen(() => window.atenasShowView('friends'));
+  api.social.onOpen((p) => { window.atenasShowView('friends'); if (p && p.key) openChat(p.key); });
   $('frBanner').addEventListener('click', () => refresh());
   call(api.social.state).then((d) => { applyState(d); refresh(); }).catch(() => {});
   setInterval(() => { if (S.viewing && !document.hidden) renderList(); }, 60000); // refresca los "hace X min"

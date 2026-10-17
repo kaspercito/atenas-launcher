@@ -190,3 +190,7 @@
 .picker[data-few="1"] .picker-card { width: min(420px, 100%); }
 .picker[data-few="2"] .picker-card { width: min(740px, 100%); }
 .pack-select[data-single="1"] .ps-chev { display: none; }
+
+/* avisos dentro del launcher: con la cara del amigo */
+.toast.with-face { display: flex; align-items: center; gap: 12px; }
+.toast .toast-t { min-width: 0; word-break: break-word; line-height: 1.35; }

@@ -29,8 +29,9 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
   assert.strictEqual(normalizeBase('http://files.minecraftforge.net/maven/'), 'https://maven.minecraftforge.net/');
 
   // ── --server/--port en versiones viejas, quickPlay en 1.20+ ──
-  assert.deepStrictEqual(quickPlayFor({ minecraft: '1.8.9', server: 'arefy.net' }), { type: 'legacy', identifier: 'arefy.net' });
-  assert.deepStrictEqual(quickPlayFor({ minecraft: '1.20.1', server: 'x.y:25570' }), { type: 'multiplayer', identifier: 'x.y:25570' });
+  assert.strictEqual(quickPlayFor({ minecraft: '1.8.9', server: 'arefy.net' }), null); // por defecto NO entra directo: sale en Multijugador con ★
+  assert.deepStrictEqual(quickPlayFor({ minecraft: '1.8.9', server: 'arefy.net', autoJoin: true }), { type: 'legacy', identifier: 'arefy.net' });
+  assert.deepStrictEqual(quickPlayFor({ minecraft: '1.20.1', server: 'x.y:25570', autoJoin: true }), { type: 'multiplayer', identifier: 'x.y:25570' });
   assert.strictEqual(quickPlayFor({ minecraft: '1.8.9' }), null);
 
   // ── servidor falso: librerías Maven y API de releases ──

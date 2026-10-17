@@ -54,6 +54,7 @@ function createSocial({ url, file, getName, timeoutMs = 8000 }) {
   return {
     configured, identity,
     sync: (presence) => call('/sync', { presence }),
+    poll: () => call('/poll'),
     add: async (to) => call('/friends/add', { to: cleanName(to) }),
     accept: (name) => call('/friends/accept', { name }),
     remove: (name) => call('/friends/remove', { name }),

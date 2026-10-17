@@ -1,7 +1,7 @@
 {
   "name": "atenas-launcher",
   "productName": "Atenas Client",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "Launcher de Minecraft con modpacks propios y actualizaciones automáticas de mods",
   "main": "main.js",
   "author": "kaspercito",

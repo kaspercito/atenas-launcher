@@ -22,6 +22,7 @@ const { createLoadingWindow } = require('./src/lib/loadingwin');
 const { DiscordRpc } = require('./src/lib/discord');
 const { packKind, KIND_LABEL, gameProps } = require('./src/lib/packkind');
 const { createSocial, mergeServer, diffSnapshots } = require('./src/lib/social');
+const { createToaster } = require('./src/lib/toastwin');
 
 // Todo vive en %USERPROFILE%\.atenasclient (ver src/lib/paths.js). Lo que había en %APPDATA%\Atenas Launcher se mueve solo la primera vez.
 const P = paths.ensure(paths.layout());
@@ -473,7 +474,7 @@ handle('auth:login', async () => {
 });
 handle('auth:offline', async (name) => { const r = account.loginOffline(name); lastSnap = null; lastSocialError = null; setActivity(); return r; });
 const waitLeave = () => Promise.race([leavePresence(), new Promise((r) => setTimeout(r, 1500))]);
-function afterAccountChange() { lastSnap = null; lastSocialError = null; send('social:update', socialPayload()); setActivity(); }
+function afterAccountChange() { lastPoll = null; lastSnap = null; lastSocialError = null; send('social:update', socialPayload()); setActivity(); }
 const accountsPayload = () => ({ active: account.info, list: accountsLib.view(readAccounts(), activeId()) });
 
 // Cerrar sesión: quita la cuenta activa de la lista y, si quedan otras guardadas, entra con la más reciente.
@@ -682,13 +683,22 @@ function socialPayload() {
   return { status: lastSocialError ? 'stale' : 'ok', error: lastSocialError, me: lastSnap.me, friends: lastSnap.friends, incoming: lastSnap.incoming, outgoing: lastSnap.outgoing, unread: lastSnap.unread };
 }
 
-function notifySocial(title, body) {
-  if (getSettings().notify === false || !Notification.isSupported()) return;
-  try {
-    const n = new Notification({ title, body });
-    n.on('click', () => { showWindow(); send('social:open', null); });
-    n.show();
-  } catch {}
+// Avisos de amigos: si el launcher está a la vista, la propia interfaz muestra su aviso; si no, sale una tarjeta abajo a la
+// derecha de la pantalla. Si estás dentro del juego (cliente de Atenas o pack con el mod social) el aviso sale ahí, arriba a la derecha.
+const toaster = createToaster({
+  preload: path.join(__dirname, 'src', 'toast-preload.js'),
+  page: path.join(__dirname, 'renderer', 'toast.html'),
+  onClick: (item) => { showWindow(); send('social:open', item && item.key ? { key: item.key } : null); },
+});
+const launcherVisible = () => !!(win && !win.isDestroyed() && win.isVisible() && !win.isMinimized() && win.isFocused());
+const gameShowsToasts = () => !!playing && ['pvp', 'mods'].includes(playing.kind);
+function notifySocial(title, body, extra = {}) {
+  if (getSettings().notify === false) return;
+  if (launcherVisible() || gameShowsToasts()) return;
+  try { toaster.show({ title, body, ...extra }); }
+  catch {
+    try { if (Notification.isSupported()) { const n = new Notification({ title, body }); n.on('click', () => { showWindow(); send('social:open', null); }); n.show(); } } catch {}
+  }
 }
 
 // Si hay amigos guardados de la versión anterior (solo local), se les envía una solicitud una vez.
@@ -714,13 +724,13 @@ async function socialSync(announce = true) {
       if (announce && hadSnap) {
         const focused = win && !win.isDestroyed() && win.isFocused() && !win.isMinimized();
         send('social:events', d);
-        for (const r of d.requests) notifySocial('Solicitud de amistad', `${r.name} quiere ser tu amigo`);
-        for (const f of d.accepted) notifySocial('Atenas Client', `${f.name} aceptó tu solicitud`);
+        for (const r of d.requests) notifySocial('Solicitud de amistad', `${r.name} quiere ser tu amigo`, { kind: 'request', name: r.name });
+        for (const f of d.accepted) notifySocial('Nuevo amigo', `${f.name} aceptó tu solicitud`, { kind: 'friend', name: f.name });
         if (!focused) {
-          if (getSettings().notifyChat !== false) for (const f of d.messages) notifySocial(f.name, f.preview.body);
+          if (getSettings().notifyChat !== false) for (const f of d.messages) notifySocial(f.name, f.preview.body, { kind: 'message', name: f.name, key: f.key });
           if (getSettings().notifyFriends !== false && d.came.length) {
             const one = d.came[0];
-            notifySocial('Atenas Client', d.came.length === 1 ? `${one.name} ${one.state === 'online' ? 'abrió el launcher' : 'está jugando' + (one.pack ? ' ' + one.pack : '')}` : `${d.came.map((f) => f.name).slice(0, 3).join(', ')}${d.came.length > 3 ? ' y más' : ''} se conectaron`);
+            notifySocial(d.came.length === 1 ? one.name : 'Amigos conectados', d.came.length === 1 ? (one.state === 'online' ? 'abrió el launcher' : 'está jugando' + (one.pack ? ' ' + one.pack : '')) : `${d.came.map((f) => f.name).slice(0, 3).join(', ')}${d.came.length > 3 ? ' y más' : ''} se conectaron`, { kind: 'friend', name: d.came.length === 1 ? one.name : '' });
           }
         }
       }
@@ -755,7 +765,21 @@ async function leavePresence() {
   try { await social.sync({ source: 'launcher', offline: true }); } catch {}
 }
 const beatSoon = () => { setTimeout(() => socialSync(true), 600); };
+// Cada 4 s una consulta mínima (2 lecturas pequeñas en el servidor): si hay mensajes o solicitudes nuevas se baja todo al instante.
+let lastPoll = null, pollBusy = false;
+async function socialPoll() {
+  if (pollBusy || socialBusy || !social.configured || !(account.info || {}).name || getSettings().notify === false && !launcherVisible()) return;
+  pollBusy = true;
+  try {
+    const p = await social.poll();
+    const sig = `${p.unread}:${p.last}:${p.incoming}`;
+    const changed = lastPoll !== null && sig !== lastPoll;
+    lastPoll = sig;
+    if (changed) socialSync(true);
+  } catch { /* sin conexión: el ciclo normal reintenta */ } finally { pollBusy = false; }
+}
 function startSocialLoop() {
+  setInterval(socialPoll, 4000).unref?.();
   setTimeout(() => socialSync(true), 3000);
   setInterval(() => {
     const visible = win && !win.isDestroyed() && win.isVisible() && !win.isMinimized();
