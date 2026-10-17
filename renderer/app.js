@@ -288,10 +288,18 @@
   function renderPacks() {
     const cur = state.packs.find((p) => p.id === state.selected);
     const s = state.summaries[state.selected];
-    $('psName').textContent = (s && s.name) || (cur && cur.name) || 'Elegir modpack';
+    $('psName').textContent = (s && s.name) || (cur && cur.name) || 'Elegir versión';
     const ico = $('psIco');
-    ico.textContent = modInitial((s && s.name) || (cur && cur.name) || 'A');
     ico.style.setProperty('--h', String(hueOf(state.selected || 'a')));
+    if (cur) {
+      // el icono es la ilustración del propio pack (la misma de su tarjeta), no una letra
+      ico.textContent = '';
+      ico.style.setProperty('--ico', `url("${artOf(cur, s)}")`);
+      ico.classList.add('has-art');
+    } else {
+      ico.textContent = modInitial('A');
+      ico.classList.remove('has-art');
+    }
     const flag = $('psFlag');
     const upd = state.packs.some((p) => (state.summaries[p.id] || {}).status === 'update');
     flag.hidden = !upd;

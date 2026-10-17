@@ -29,7 +29,7 @@
   const acts = [
     ['Jugar / instalar', 'Enter', press('btnPlay')], ['Ir a Inicio', '1', go('home')], ['Ir a Mods', '2', go('mods')],
     ['Ir a Novedades', '3', go('news')], ['Ir a Amigos y chat', '4', go('friends')], ['Ir a Ajustes', '5', go('settings')],
-    ['Elegir modpack', 'M', press('packSelect')],
+    ['Elegir versión', 'M', press('packSelect')],
     ['Copiar IP del servidor', '', press('scIp')], ['Abrir carpeta del juego', '', press('btnFolder')],
     ['Abrir capturas', '', press('qShots')], ['Reparar instalación', '', press('qRepair')], ['Ver registro del juego', '', press('btnLog')],
     ['Cambiar tema de color', '', () => { const t = [...document.querySelectorAll('.theme')]; const i = t.findIndex((x) => x.getAttribute('aria-checked') === 'true'); t[(i + 1) % t.length]?.click(); }],
