@@ -45,8 +45,7 @@ class DiscordRpc {
   // activity: { details, state, startedAt (ms), largeText, smallImage (URL o clave), smallText (texto al pasar el mouse), buttons: [{ label, url }] }
   set(a) {
     if (!a) { this.activity = null; return this._send(); }
-    // largeImage = clave de un asset subido al portal de Discord (pvp, smp, mods, cube); si Discord no la tiene, cae al logo
-    const assets = { large_image: /^[a-z0-9_]{2,32}$/.test(a.largeImage || '') ? a.largeImage : 'icon', large_text: a.largeText || 'Atenas Client' };
+    const assets = { large_image: 'icon', large_text: a.largeText || 'Atenas Client' };
     if (a.smallImage) { assets.small_image = String(a.smallImage).slice(0, 300); if (a.smallText) assets.small_text = String(a.smallText).slice(0, 128); }
     const buttons = (a.buttons || []).filter((b) => b && b.label && /^https:\/\//.test(b.url || '')).slice(0, 2).map((b) => ({ label: String(b.label).slice(0, 32), url: String(b.url).slice(0, 512) }));
     this.activity = {

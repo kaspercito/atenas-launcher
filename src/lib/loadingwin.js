@@ -10,7 +10,7 @@ const { createTracker } = require('./loadprogress');
 // Por seguridad: pase lo que pase, la ventana nunca tapa el juego para siempre.
 const MAX_MS = { builtin: 4 * 60 * 1000, pack: 5 * 60 * 1000 };
 // Cuanto esperar despues de que arranca el sonido: el cliente de Atenas avisa solo; en otros packs ya casi esta el menu.
-const AFTER_SOUND_MS = { builtin: 25 * 1000, pack: 3500 };
+const AFTER_SOUND_MS = { builtin: 15 * 1000, pack: 3500 };
 // Si el juego deja de escribir en la consola tanto tiempo estando ya casi listo, se asume que ya esta en el menu.
 const QUIET_MS = 45 * 1000;
 

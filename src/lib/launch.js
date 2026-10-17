@@ -97,11 +97,12 @@ function launchGame({ manifest, instanceDir, mclcAuth, javaPath, customId, ramMb
 
   return new Promise((resolve, reject) => {
     let started = false;
-    const log = (e) => hooks.onLog && hooks.onLog(String(e).trimEnd());
+    // Nunca escribir el token de sesión en el registro/consola (aparece en la línea de argumentos de lanzamiento).
+    const log = (e) => hooks.onLog && hooks.onLog(String(e).trimEnd().replace(/(--accessToken\s+)\S+/g, '$1[oculto]'));
     launcher.on('debug', log);
     launcher.on('data', (e) => {
       log(e);
-      if (!started && /Setting user|LWJGL|Loading/i.test(String(e))) {
+      if (!started && String(e).trim()) { // la primera salida del proceso del juego = Minecraft ya arrancó
         started = true;
         hooks.onStarted && hooks.onStarted();
       }

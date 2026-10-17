@@ -4,7 +4,9 @@
  * No hay un "porcentaje real" de Forge 1.8.9, asi que se usan hitos (lineas que siempre salen en ese orden) y, entre hito
  * e hito, la barra avanza despacio sola (creep) para que nunca parezca congelada. Nunca retrocede.
  */
-const READY_RE = /\[Atenas\] MENU_READY/;
+// Listo = el menú de Atenas avisó, o el juego ya entró directo a un servidor (--server): ahí nunca hay menú principal, así que
+// MENU_READY no llega; la conexión establecida o el primer mensaje de chat marcan que ya se está viendo el juego.
+const READY_RE = /\[Atenas\] MENU_READY|Client side (?:vanilla |modded )?connection established|\[CHAT\]/;
 // Cualquier modpack (sin el cliente de Atenas): el sonido arranca cuando el juego ya abrio su ventana y esta por mostrar el menu.
 const SOUND_RE = /Sound engine started|Starting up SoundSystem|SoundSystem started/i;
 
@@ -33,7 +35,7 @@ function createTracker() {
       if (READY_RE.test(s)) { done = true; pct = 100; text = 'Listo'; return { pct, text, ready: true, sound }; }
       if (SOUND_RE.test(s)) sound = true;
       for (const [p, t, re] of STAGES) {
-        if (p > pct && re.test(s)) { pct = p; text = t; cap = Math.min(97, p + 10); }
+        if (p > pct && re.test(s)) { pct = p; text = t; cap = Math.min(97, p + 10); if (p >= 93) sound = true; } // 'Casi listo' = ya casi en el menú, aunque el log de sonido no salga
       }
       return { pct: Math.round(pct), text, ready: done, sound };
     },
