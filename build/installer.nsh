@@ -41,7 +41,11 @@
 !macroend
 
 !macro customUnInstall
-  MessageBox MB_YESNO|MB_ICONQUESTION "¿Quieres borrar también tus modpacks, mundos y ajustes de Atenas Client?$\r$\n$\r$\nElige No para conservarlos." /SD IDNO IDNO +2
-  RMDir /r "$APPDATA\Atenas Launcher"
-  RMDir /r "$PROFILE\.atenasclient"
+  ; Si es una actualizacion (electron-updater desinstala la version vieja y instala la nueva) NO se borra nada.
+  ${ifNot} ${isUpdated}
+    MessageBox MB_YESNO|MB_ICONQUESTION "¿Quieres borrar también tus modpacks, mundos y ajustes de Atenas Client?$\r$\n$\r$\nElige No para conservarlos." /SD IDNO IDNO atenas_conservar
+    RMDir /r "$APPDATA\Atenas Launcher"
+    RMDir /r "$PROFILE\.atenasclient"
+    atenas_conservar:
+  ${endIf}
 !macroend
