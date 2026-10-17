@@ -10,6 +10,9 @@ const cleanName = (n) => { const s = String(n || '').trim(); if (!NAME.test(s)) 
 
 const base = (url) => String(url || '').replace(/\/$/, '');
 
+const MOJANG_JOIN = 'https://sessionserver.mojang.com/session/minecraft/join';
+const RETRY_UNVERIFIED_MS = 30 * 60 * 1000; // una cuenta sin conexión no se vuelve a intentar verificar hasta pasado este tiempo
+
 /** Lee (o crea la primera vez) la clave de esta instalación. Se guarda en <root>/social.json junto con la URL, para que el cliente de Minecraft la encuentre. */
 function loadIdentity(file, url) {
   let id = null;
@@ -25,14 +28,22 @@ function loadIdentity(file, url) {
 class SocialError extends Error { constructor(code, message) { super(message); this.code = code; } }
 
 /**
- * api = createSocial({ url, file, getName })
+ * api = createSocial({ url, file, getName, getAuth })
  *   getName(): nick de la cuenta activa (o null si no hay sesión)
+ *   getAuth(): { accessToken, uuid } de la sesión de Microsoft activa, o null si la cuenta es sin conexión.
+ *
+ * Verificación premium: con una cuenta de Microsoft, antes de la primera llamada se hace /auth/challenge → joinServer en Mojang →
+ * /auth/verify, y el servicio comprueba con Mojang que la cuenta es de verdad tuya (así nadie puede hacerse pasar por ti ni usar
+ * tus cosméticos privados). Es transparente: si algo falla, el servicio sigue funcionando como cuenta sin verificar.
  */
-function createSocial({ url, file, getName, timeoutMs = 8000 }) {
+function createSocial({ url, file, getName, getAuth, timeoutMs = 8000 }) {
   const identity = loadIdentity(file, url);
   const configured = !!base(url);
+  let verifiedFor = '';                    // nick (en minúsculas) verificado en esta sesión
+  let failed = { name: '', at: 0 };        // último intento que no se pudo verificar (cuenta sin conexión o sesión caducada)
+  let verifying = null;                    // { name, promise }: evita verificar dos veces a la vez
 
-  async function call(route, body = {}) {
+  async function rawCall(route, body = {}) {
     if (!configured) throw new SocialError('not_configured', 'El servicio de amigos todavía no está activado (falta la URL en launcher.config.json).');
     const name = getName();
     if (!name) throw new SocialError('no_account', 'Inicia sesión para usar amigos y chat.');
@@ -51,8 +62,64 @@ function createSocial({ url, file, getName, timeoutMs = 8000 }) {
     return j;
   }
 
+  /** true = verificada con Mojang; false = no se pudo (cuenta sin conexión, sesión caducada). Lanza si fue un fallo de red/servicio pasajero. */
+  async function verifyWithMojang() {
+    const auth = getAuth ? await getAuth() : null;
+    if (!auth || !auth.accessToken || !auth.uuid) return false; // cuenta sin conexión: no hay nada que demostrar
+    const ch = await rawCall('/auth/challenge');
+    let res;
+    try {
+      res = await fetch(MOJANG_JOIN, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ accessToken: auth.accessToken, selectedProfile: String(auth.uuid).replace(/-/g, ''), serverId: ch.serverId }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch { throw new SocialError('offline', 'No se pudo hablar con Mojang.'); }
+    if (res.status !== 204 && res.status !== 200) return false; // Mojang rechazó la sesión
+    await rawCall('/auth/verify');
+    return true;
+  }
+
+  /** Verifica a la cuenta activa si aún no lo está. Nunca lanza: si no se logra, el servicio la trata como cuenta sin verificar. */
+  async function ensureVerified(force = false) {
+    const name = String(getName() || '').toLowerCase();
+    if (!name) return false;
+    if (!force && verifiedFor === name) return true;
+    if (!force && failed.name === name && Date.now() - failed.at < RETRY_UNVERIFIED_MS) return false;
+    if (verifying && verifying.name === name) return verifying.promise;
+    const promise = (async () => {
+      try {
+        if (await verifyWithMojang()) { verifiedFor = name; failed = { name: '', at: 0 }; return true; }
+        failed = { name, at: Date.now() };
+      } catch (e) {
+        // sin internet o Mojang/servicio caído: se reintenta en la próxima llamada; si el servicio dijo "no" (not_verified), se espera
+        if (e && !['offline', 'mojang_down', 'too_many', 'server', 'no_challenge'].includes(e.code)) failed = { name, at: Date.now() };
+      }
+      return false;
+    })().finally(() => { verifying = null; });
+    verifying = { name, promise };
+    return promise;
+  }
+
+  async function call(route, body = {}) {
+    if (!configured) throw new SocialError('not_configured', 'El servicio de amigos todavía no está activado (falta la URL en launcher.config.json).');
+    if (!getName()) throw new SocialError('no_account', 'Inicia sesión para usar amigos y chat.');
+    await ensureVerified();
+    try { return await rawCall(route, body); }
+    catch (e) {
+      // el nick está verificado por otra instalación y esta aún no: se demuestra con la sesión de Microsoft y se reintenta una vez
+      if (!(e instanceof SocialError) || e.code !== 'verify_required') throw e;
+      verifiedFor = ''; failed = { name: '', at: 0 };
+      if (!(await ensureVerified(true))) throw e;
+      return rawCall(route, body);
+    }
+  }
+
   return {
     configured, identity,
+    ensureVerified,
+    isVerified: () => verifiedFor !== '' && verifiedFor === String(getName() || '').toLowerCase(),
     sync: (presence) => call('/sync', { presence }),
     poll: () => call('/poll'),
     add: async (to) => call('/friends/add', { to: cleanName(to) }),

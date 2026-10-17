@@ -656,7 +656,17 @@ handle('app:updateInstall', async () => { updater.install(); return true; });
 
 // ───────────────────────── amigos, solicitudes y chat (servicio social) ─────────────────────────
 // El servicio guarda amistades, mensajes y presencia (social-worker/). Cada vuelta de "sync" también avisa tu propio estado.
-const social = createSocial({ url: config.socialUrl || config.presenceUrl || '', file: path.join(P.root, 'social.json'), getName: () => (account.info || {}).name || null });
+const social = createSocial({
+  url: config.socialUrl || config.presenceUrl || '',
+  file: path.join(P.root, 'social.json'),
+  getName: () => (account.info || {}).name || null,
+  // Sesión de Microsoft para demostrar con Mojang que la cuenta premium es tuya (las cuentas sin conexión no tienen: quedan sin verificar).
+  getAuth: async () => {
+    const a = account.info;
+    if (!a || a.kind === 'offline') return null;
+    try { const m = await account.getMclc(); return { accessToken: m.access_token, uuid: m.uuid }; } catch { return null; }
+  },
+});
 let lastSnap = null;       // última respuesta buena
 let lastSocialError = null;
 let socialBusy = null;
