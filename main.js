@@ -20,6 +20,7 @@ const { createUpdater } = require('./src/lib/updater');
 const { createUpdateWindow } = require('./src/lib/updatewin');
 const { createLoadingWindow } = require('./src/lib/loadingwin');
 const { DiscordRpc } = require('./src/lib/discord');
+const { packKind, KIND_LABEL, gameProps } = require('./src/lib/packkind');
 const { createSocial, mergeServer, diffSnapshots } = require('./src/lib/social');
 
 // Todo vive en %USERPROFILE%\.atenasclient (ver src/lib/paths.js). Lo que había en %APPDATA%\Atenas Launcher se mueve solo la primera vez.
@@ -408,13 +409,13 @@ async function play(packId, mclcAuth) {
     customId,
     ramMb: getSettings().ramMb,
     optimizedJvm: getSettings().jvmOptimized,
-    extraJvm: [...cleanJvm(getSettings().extraJvm), '-Datenas.home=' + P.root],
+    extraJvm: [...cleanJvm(getSettings().extraJvm), '-Datenas.home=' + P.root, ...gameProps(manifest)],
     fullscreen: getSettings().fullscreen === true,
     hooks: {
       onLog: (line) => { gameLog(line); if (loadWin) loadWin.feed(line); },
       onStarted: () => {
         startedAt = Date.now();
-        playing = { pack: manifest.name || pack.name || pack.id, startedAt };
+        playing = { pack: manifest.name || pack.name || pack.id, startedAt, kind: packKind({ ...pack, ...manifest }) };
         setActivity();
         send('game:state', { state: 'running', message: 'Minecraft en ejecución' });
         if (getSettings().minimizeOnPlay && win && !win.isDestroyed()) win.minimize();
@@ -643,7 +644,7 @@ function setActivity() {
   const who = nick && getSettings().discordShowNick !== false
     ? { smallImage: 'https://mc-heads.net/avatar/' + encodeURIComponent(nick) + '/128', smallText: nick }
     : {};
-  if (playing) rpc.set({ details: `Jugando ${playing.pack}`, state: 'En Atenas Client', startedAt: playing.startedAt, ...who });
+  if (playing) rpc.set({ details: `Jugando ${playing.pack}`, state: KIND_LABEL[playing.kind] || 'En Atenas Client', startedAt: playing.startedAt, largeImage: playing.kind, largeText: playing.pack, ...who });
   else rpc.set({ details: 'En el launcher', state: 'Preparando la aventura', startedAt: launcherStartedAt, ...who });
 }
 const launcherStartedAt = Date.now();

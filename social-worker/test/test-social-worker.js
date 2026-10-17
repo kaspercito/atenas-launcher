@@ -120,5 +120,17 @@ const { makeD1 } = require('./d1shim');
   env.DB.raw.prepare('UPDATE users SET launcher_ts = 0, game_ts = 0, created = ? WHERE name = ?').run(Date.now() - 40 * 86400000, 'carol');
   assert.strictEqual((await call('Carol', '/sync', {}, 'q'.repeat(32))).ok, true); ok('nick sin uso 30 días se puede reclamar');
 
+  // cosméticos
+  await call('Alice', '/sync'); await call('Bob', '/sync');
+  assert.strictEqual((await call('Alice', '/cosmetics/set', { cape: 'violeta', wings: 'neon', hat: 'Mal Id!' })).ok, true); ok('Alice guarda sus cosméticos');
+  let cs = await call('Bob', '/cosmetics/get', { names: ['ALICE', 'nadie_xx', 'x', 'alice'] });
+  assert.deepStrictEqual(cs.players.alice, { cape: 'violeta', wings: 'neon', hat: 'none' }); ok('Bob ve los de Alice (ids raros pasan a "none")');
+  assert.strictEqual(cs.players.nadie_xx, undefined); ok('quien no tiene cosméticos no aparece');
+  await call('Alice', '/cosmetics/set', { cape: 'oro', wings: 'none', hat: 'corona' });
+  cs = await call('Bob', '/cosmetics/get', { names: ['alice'] });
+  assert.deepStrictEqual(cs.players.alice, { cape: 'oro', wings: 'none', hat: 'corona' }); ok('cambiar cosméticos reemplaza los anteriores');
+  assert.deepStrictEqual((await call('Bob', '/cosmetics/get', { names: 'no-es-lista' })).players, {}); ok('lista inválida no rompe nada');
+
   console.log('social worker: todo bien (' + n + ' comprobaciones)');
 })().catch((e) => { console.error(e); process.exit(1); });
+

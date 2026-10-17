@@ -7,4 +7,4 @@ compatibility_date = "2025-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "atenas-social"
-database_id = "09f4e948-4b03-493e-a5e1-a5648a27d734"
+database_id = "1a0a0176-79c8-41d6-ab5c-db76e7ccb013"

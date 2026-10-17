@@ -27,6 +27,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT NOT NULL, recipient TEXT NOT NULL, body TEXT NOT NULL, ts INTEGER NOT NULL, read INTEGER NOT NULL DEFAULT 0)',
   'CREATE INDEX IF NOT EXISTS msg_pair ON messages (sender, recipient, id)',
   'CREATE INDEX IF NOT EXISTS msg_unread ON messages (recipient, read)',
+  'CREATE TABLE IF NOT EXISTS cosmetics (name TEXT PRIMARY KEY, data TEXT NOT NULL, ts INTEGER NOT NULL)',
 ];
 let schemaReady = null;
 function ensureSchema(db) {
@@ -148,6 +149,24 @@ const routes = {
     await applyPresence(db, me, body.presence, now);
     // el propio estado se ve ya reflejado en lo que devuelve
     return snapshot(db, me, now);
+  },
+
+  /** Cosméticos (capa, alas, sombrero) que elige cada jugador. Los ven todos los que usan el mod de Atenas. */
+  async '/cosmetics/set'(db, me, body, now) {
+    const clean = (v) => (/^[a-z0-9_]{1,24}$/.test(String(v || '')) ? String(v) : 'none');
+    const data = JSON.stringify({ cape: clean(body.cape), wings: clean(body.wings), hat: clean(body.hat) });
+    await db.prepare('INSERT INTO cosmetics (name, data, ts) VALUES (?1, ?2, ?3) ON CONFLICT(name) DO UPDATE SET data = ?2, ts = ?3').bind(me.name, data, now).run();
+    return { ok: true };
+  },
+
+  /** Cosméticos de hasta 40 jugadores a la vez (los que tienes cerca). */
+  async '/cosmetics/get'(db, me, body) {
+    const names = [...new Set((Array.isArray(body.names) ? body.names : []).map(lower).filter((n) => NAME.test(n)))].slice(0, 40);
+    const players = {};
+    if (!names.length) return { ok: true, players };
+    const rows = (await db.prepare(`SELECT name, data FROM cosmetics WHERE name IN (${names.map(() => '?').join(',')})`).bind(...names).all()).results || [];
+    for (const r of rows) { try { players[r.name] = JSON.parse(r.data); } catch { /* fila dañada: se ignora */ } }
+    return { ok: true, players };
   },
 
   async '/friends/add'(db, me, body, now) {
