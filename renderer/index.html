@@ -271,6 +271,7 @@
             </div>
             <input type="range" id="ramRange" min="1024" step="512" aria-label="Memoria para Minecraft">
             <small class="muted" id="ramHint"></small>
+            <div class="row"><button type="button" class="btn ghost small" id="ramReset" hidden>Usar la RAM del modpack</button></div>
           </div>
 
           <div class="card">
@@ -322,6 +323,31 @@
               <strong>Argumentos de Java extra</strong>
               <input id="extraJvm" type="text" maxlength="400" placeholder="-Dfml.readTimeout=120" spellcheck="false" autocomplete="off">
               <small class="muted">Opcional, para usuarios avanzados. Se ignoran la RAM (-Xmx/-Xms) y los agentes (-javaagent).</small>
+            </label>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h4>Compartir con tu .minecraft</h4></div>
+            <small class="muted">Así no repites la configuración en cada modpack: todos usan las mismas carpetas que tu Minecraft normal. Lo que ya tengas en un modpack se junta con lo de .minecraft sin borrar nada.</small>
+            <label class="switch-row">
+              <span><strong>Resource packs</strong><small class="muted">Carpeta resourcepacks.</small></span>
+              <input type="checkbox" id="shResourcepacks" class="switch">
+            </label>
+            <label class="switch-row">
+              <span><strong>Capturas de pantalla</strong><small class="muted">Carpeta screenshots.</small></span>
+              <input type="checkbox" id="shScreenshots" class="switch">
+            </label>
+            <label class="switch-row">
+              <span><strong>Lista de servidores</strong><small class="muted">Tus servidores guardados (servers.dat) salen en todos los modpacks.</small></span>
+              <input type="checkbox" id="shServers" class="switch">
+            </label>
+            <label class="switch-row">
+              <span><strong>Registros (logs)</strong><small class="muted">Carpeta logs.</small></span>
+              <input type="checkbox" id="shLogs" class="switch">
+            </label>
+            <label class="switch-row">
+              <span><strong>Configuraciones de mods (config)</strong><small class="muted">Ojo: cada modpack trae sus propias configs; si las compartes, un pack puede cambiar las de otro. Mejor déjalo apagado salvo que quieras eso.</small></span>
+              <input type="checkbox" id="shConfig" class="switch">
             </label>
           </div>
 

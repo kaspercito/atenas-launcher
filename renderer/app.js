@@ -718,9 +718,9 @@
     const max = Math.max(2048, Math.min(16384, Math.floor((state.totalRamMb - 1536) / 512) * 512));
     const range = $('ramRange');
     range.max = String(max);
-    range.value = String(Math.min(state.settings.ramMb || 4096, max));
-    updateRamLabel();
-    $('ramHint').textContent = `Tu PC tiene ${(state.totalRamMb / 1024).toFixed(0)} GB. Para este tipo de modpack, 6 a 8 GB va muy bien; más no siempre es mejor.`;
+    refreshRam();
+    const sh = { resourcepacks: true, screenshots: true, logs: true, servers: true, config: false, ...(state.settings.shareFolders || {}) };
+    $('shResourcepacks').checked = sh.resourcepacks; $('shScreenshots').checked = sh.screenshots; $('shServers').checked = sh.servers; $('shLogs').checked = sh.logs; $('shConfig').checked = sh.config;
     $('optJvm').checked = state.settings.jvmOptimized !== false;
     $('optMin').checked = state.settings.minimizeOnPlay !== false;
     $('optFx').checked = state.settings.fx !== false;
@@ -732,6 +732,22 @@
     $('extraJvm').value = state.settings.extraJvm || '';
     document.querySelectorAll('.theme').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.theme === (state.settings.theme || 'atenas'))));
     $('appVersion').textContent = `Atenas Client ${state.appVersion}`;
+  }
+  // La RAM es por modpack: si el jugador no la tocó, se usa la que puso el creador en el pack.json.
+  async function refreshRam() {
+    const id = state.selected;
+    const range = $('ramRange');
+    const info = id ? await call(api.ramInfo, id).catch(() => null) : null;
+    const packMb = info && info.packMb, userMb = info && info.userMb;
+    const max = Number(range.max) || 8192;
+    range.value = String(Math.min(userMb || packMb || 4096, max));
+    updateRamLabel();
+    const pk = (state.packs.find((p) => p.id === id) || {}).name || 'este modpack';
+    const gb = (mb) => (mb / 1024).toFixed(1).replace('.0', '') + ' GB';
+    $('ramHint').textContent = `Tu PC tiene ${(state.totalRamMb / 1024).toFixed(0)} GB. ` + (userMb
+      ? `Para ${pk} elegiste ${gb(userMb)}` + (packMb ? ` (el modpack recomienda ${gb(packMb)}).` : '.')
+      : packMb ? `${pk} usa los ${gb(packMb)} que definió su creador; muévelo solo si quieres otra cantidad.` : `${pk} no define RAM; se usan ${gb(4096)}.`);
+    $('ramReset').hidden = !userMb || !packMb;
   }
   function updateRamLabel() {
     $('ramValue').textContent = `${(Number($('ramRange').value) / 1024).toFixed(1)} GB`;
@@ -858,7 +874,9 @@
     $('btnFolder').addEventListener('click', () => state.selected && call(api.openFolder, state.selected).catch((e) => toast(e.message, 'error')));
     $('modSearch').addEventListener('input', renderMods);
     $('ramRange').addEventListener('input', updateRamLabel);
-    $('ramRange').addEventListener('change', () => patchSettings({ ramMb: Number($('ramRange').value) }));
+    $('ramRange').addEventListener('change', async () => { if (state.selected) await patchSettings({ ramPack: { id: state.selected, mb: Number($('ramRange').value) } }); refreshRam(); });
+    $('ramReset').addEventListener('click', async () => { await patchSettings({ ramPack: { id: state.selected, mb: null } }); refreshRam(); toast('Vuelve a usar la RAM del modpack'); });
+    for (const [id, k] of [['shResourcepacks', 'resourcepacks'], ['shScreenshots', 'screenshots'], ['shServers', 'servers'], ['shLogs', 'logs'], ['shConfig', 'config']]) $(id).addEventListener('change', (e) => patchSettings({ shareFolders: { [k]: e.target.checked } }));
     $('optJvm').addEventListener('change', (e) => patchSettings({ jvmOptimized: e.target.checked }));
     $('optMin').addEventListener('change', (e) => patchSettings({ minimizeOnPlay: e.target.checked }));
     $('optFx').addEventListener('change', async (e) => { await patchSettings({ fx: e.target.checked }); applyFx(); });

@@ -270,3 +270,8 @@ body { background: var(--bg); }
 /* ── ventana mediana: la barra no cabe entera, así que se quita el buscador (Ctrl+K sigue funcionando) para que nada se encime con los botones de la ventana ── */
 @media (max-width: 1260px) { .kpill { display: none !important; } .rail { gap: 14px; } }
 .rail { border-right: 0 !important; }
+
+/* Ajustes: rejilla de 1-2 columnas con scroll vertical. (Con "columns" y alto fijo las tarjetas de más abajo pasaban a una columna oculta a la derecha.) */
+.cards { display: grid; columns: auto; max-width: 1120px; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px 16px; align-items: start; align-content: start; }
+.cards > * { margin-bottom: 0; break-inside: auto; }
+.cards > .version { grid-column: 1 / -1; }

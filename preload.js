@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('atenas', {
     remove: (id) => invoke('accounts:remove', id),
   },
   setSettings: (patch) => invoke('settings:set', patch),
+  ramInfo: (packId) => invoke('ram:info', packId),
   openFolder: (id, sub) => invoke('app:openFolder', id, sub),
   repairPack: (id) => invoke('pack:repair', id),
   serverStatus: (addr) => invoke('server:status', addr),

@@ -5,7 +5,7 @@
   const kind = q.get('kind') || 'info', name = q.get('name') || '';
   const card = $('card');
   card.style.setProperty('--life', (Number(q.get('life')) || 7000) + 'ms');
-  card.style.setProperty('--c', kind === 'friend' ? 'var(--ok)' : kind === 'info' ? 'var(--info)' : 'var(--acc)');
+  card.style.setProperty('--c', kind === 'friend' ? 'var(--ok)' : kind === 'info' ? 'var(--info)' : kind === 'request' ? 'var(--pink)' : 'var(--acc)');
   $('title').textContent = q.get('title') || 'Atenas Client';
   $('body').textContent = q.get('body') || '';
   $('hint').textContent = kind === 'message' ? 'Clic para responder' : kind === 'request' ? 'Clic para ver la solicitud' : '';

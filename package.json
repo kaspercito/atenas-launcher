@@ -8,7 +8,7 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node test/test-sync.js && node test/test-packsync.js && node test/test-ping.js && node test/test-loaders.js && node test/test-client.js && node test/test-optifine.js && node test/test-forgesplash.js && node test/test-loadprogress.js && node test/test-paths.js && node test/test-discord.js && node test/test-social.js && node test/test-accounts.js && node test/test-accountreq.js && node social-worker/test/test-social-worker.js && node social-worker/test/test-cosmetics-admin.js && node social-worker/test/test-verify.js && node admin/test/test-modsfile.js && node admin/test/test-packs.js && node admin/test/test-curseforge.js",
+    "test": "node test/test-sync.js && node test/test-packsync.js && node test/test-ping.js && node test/test-loaders.js && node test/test-client.js && node test/test-optifine.js && node test/test-forgesplash.js && node test/test-loadprogress.js && node test/test-paths.js && node test/test-shared.js && node test/test-discord.js && node test/test-social.js && node test/test-accounts.js && node test/test-accountreq.js && node social-worker/test/test-social-worker.js && node social-worker/test/test-cosmetics-admin.js && node social-worker/test/test-verify.js && node admin/test/test-modsfile.js && node admin/test/test-packs.js && node admin/test/test-curseforge.js",
     "manifest": "node tools/generate-manifest.js",
     "dist": "electron-builder --win --publish never",
     "pack": "node tools/pack-sync.js",

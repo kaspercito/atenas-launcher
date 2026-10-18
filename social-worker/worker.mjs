@@ -18,6 +18,7 @@ const MSG_COOLDOWN_MS = 500;
 const KEEP_MSGS = 200;            // mensajes que se guardan por conversación
 const MOJANG_HAS_JOINED = 'https://sessionserver.mojang.com/session/minecraft/hasJoined';
 const CHALLENGE_MS = 60000;       // tiempo que vale un desafío de verificación
+const HAS_JOINED_WAITS = [0, 400, 600, 900]; // ms de espera antes de cada intento a Mojang (hasJoined tarda en verse tras joinServer)
 const MAX_CHALLENGES = 8;         // desafíos vivos a la vez por nick
 const MAX_TOKENS = 5;             // instalaciones (PC) que una cuenta verificada puede tener enlazadas
 
@@ -169,7 +170,7 @@ async function snapshot(db, me, now) {
     const info = { name: r.display, key: other, ts: r.fts };
     if (r.state === 'accepted') {
       const p = presenceOf(r, now);
-      friends.push({ ...info, ...p, unread: (unread[other] || {}).n || 0, preview: previews[other] || null });
+      friends.push({ ...info, ...p, seen: Math.max(r.launcher_ts || 0, r.game_ts || 0), unread: (unread[other] || {}).n || 0, preview: previews[other] || null });
     } else if (r.requester === me.name) outgoing.push(info);
     else incoming.push(info);
   }
@@ -390,10 +391,18 @@ const routes = {
   async '/auth/verify'(db, me, body, now) {
     const ch = await db.prepare('SELECT sid, exp FROM auth_challenges WHERE name = ? AND th = ?').bind(me.name, me.th).first();
     if (!ch || ch.exp < now) throw bad('no_challenge', 'La verificación caducó. Inténtalo otra vez.');
-    let res;
-    try {
-      res = await fetch(MOJANG_HAS_JOINED + '?username=' + encodeURIComponent(me.display) + '&serverId=' + encodeURIComponent(ch.sid), { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
-    } catch { throw bad('mojang_down', 'No se pudo hablar con Mojang. Inténtalo en un momento.', 503); }
+    // Mojang a veces tarda unos cientos de ms en "ver" el joinServer que el cliente acaba de hacer: si el primer hasJoined
+    // dice 204/403 se reintenta unas veces antes de dar la cuenta por no verificada.
+    const waits = globalThis.ATENAS_HASJOINED_WAITS || HAS_JOINED_WAITS;
+    const url = MOJANG_HAS_JOINED + '?username=' + encodeURIComponent(me.display) + '&serverId=' + encodeURIComponent(ch.sid);
+    let res = null;
+    for (let i = 0; i < waits.length; i++) {
+      if (waits[i]) await new Promise((r) => setTimeout(r, waits[i]));
+      try {
+        res = await fetch(url, { headers: { accept: 'application/json', 'cache-control': 'no-cache', 'user-agent': 'AtenasSocial/1.0' }, cf: { cacheTtl: 0, cacheEverything: false }, signal: AbortSignal.timeout(4000) });
+      } catch { throw bad('mojang_down', 'No se pudo hablar con Mojang. Inténtalo en un momento.', 503); }
+      if (res.status !== 204 && res.status !== 403) break; // 200 (o un error real): no hace falta reintentar
+    }
     if (res.status === 204 || res.status === 403) throw bad('not_verified', 'Mojang no confirmó esta cuenta (cuenta sin conexión o sesión caducada).', 401);
     if (!res.ok) throw bad('mojang_down', 'Mojang respondió con error ' + res.status + '. Inténtalo en un momento.', 503);
     let prof = null;

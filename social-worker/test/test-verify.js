@@ -4,6 +4,8 @@ const assert = require('assert');
 const { makeD1 } = require('./d1shim');
 const mojang = require('./mojang-mock');
 
+globalThis.ATENAS_HASJOINED_WAITS = [0]; // los tests no esperan reintentos salvo el que los prueba
+
 (async () => {
   const worker = (await import('../worker.mjs')).default;
   const env = { DB: makeD1(), ADMIN_KEY: 'clave-de-prueba-larga-123' };
@@ -82,6 +84,16 @@ const mojang = require('./mojang-mock');
   assert.strictEqual(r.error, 'mojang_down'); assert.strictEqual(r.status, 503); assert.strictEqual(row('bob').verified, 0); ok('si Mojang no responde: 503 y no se verifica a nadie');
   mojang.setDown(false);
   assert.strictEqual((await call('Bob', '/auth/verify', {})).verified, true); ok('cuando Mojang vuelve, reintentar con el mismo desafío funciona');
+  // ---- Mojang tarda en ver el joinServer recién hecho: el Worker reintenta en vez de rechazar al primer 204
+  await call('Gina', '/sync');
+  globalThis.ATENAS_HASJOINED_WAITS = [0, 400, 600, 900];
+  mojang.setPropagation(700);
+  assert.strictEqual((await mojang.verifyPremium(call, 'Gina')).verified, true); ok('si Mojang tarda ~0,7 s en ver el join, el Worker reintenta y verifica');
+  await call('Hugo', '/sync');
+  mojang.setPropagation(8000);
+  assert.strictEqual((await mojang.verifyPremium(call, 'Hugo')).error, 'not_verified'); ok('si Mojang nunca lo ve, tras los reintentos sigue siendo not_verified');
+  mojang.setPropagation(0);
+  globalThis.ATENAS_HASJOINED_WAITS = [0];
   await call('Frank', '/sync');
   const cf = await call('Frank', '/auth/challenge', {}); mojang.join('Frank', mojang.uuidOf('frank'), cf.serverId);
   env.DB.raw.prepare("UPDATE auth_challenges SET exp = 1 WHERE name = 'frank'").run();

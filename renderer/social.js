@@ -29,12 +29,17 @@
   }
   const stateText = (f) => f.state === 'playing'
     ? (f.server ? `Jugando en ${f.server}` : f.pack ? `Jugando ${f.pack}` : 'Jugando Minecraft')
-    : f.state === 'online' ? 'En el launcher' : 'Desconectado';
+    : f.state === 'online' ? 'En el launcher' : (f.seen > 0 ? 'Desconectado · ' + lastSeen(f.seen) : 'Desconectado');
   const ago = (ts) => {
     const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
     if (m < 1) return 'ahora'; if (m < 60) return `hace ${m} min`;
     const h = Math.round(m / 60); if (h < 24) return `hace ${h} h`;
     return `hace ${Math.round(h / 24)} d`;
+  };
+  // "Última conexión": relativa si fue hace menos de un día, y con fecha y hora si fue antes
+  const lastSeen = (ts) => {
+    if (Date.now() - ts < 86400000) return 'visto ' + ago(ts);
+    return 'visto el ' + new Date(ts).toLocaleDateString('es', { day: 'numeric', month: 'short' }) + ', ' + new Date(ts).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   };
   const hhmm = (ts) => new Date(ts).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   const dayLabel = (ts) => {

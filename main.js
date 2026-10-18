@@ -7,7 +7,8 @@ const { loadManifest, computeDiff, applyDiff, STATE_FILE } = require('./src/lib/
 const { pingServer } = require('./src/lib/ping');
 const { javaMajorFor, ensureJava } = require('./src/lib/java');
 const { ensureLoader } = require('./src/lib/loaders');
-const { launchGame } = require('./src/lib/launch');
+const { launchGame, parseMb } = require('./src/lib/launch');
+const sharedFolders = require('./src/lib/shared');
 const { Account, offlineUuid } = require('./src/lib/auth');
 const accountReq = require('./src/lib/accountreq');
 const accountsLib = require('./src/lib/accounts');
@@ -63,7 +64,7 @@ function writeJson(file, data) {
 }
 
 const getSettings = () => ({
-  ramMb: 4096, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, optifine: true, fx: true, notify: true, theme: 'atenas', themeV: 2,
+  ramByPack: {}, shareFolders: { resourcepacks: true, screenshots: true, logs: true, servers: true, config: false }, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, optifine: true, fx: true, notify: true, theme: 'atenas', themeV: 2,
   fullscreen: false, extraJvm: '', autoStart: false, hud: true, closeToTray: true, discordRpc: true, discordShowNick: true, sharePresence: true, friends: [], friendsMigrated: false, notifyChat: true,
   seenNews: {}, playtime: {}, lastPlayed: {},
   ...(() => { const saved = readJson(settingsFile(), {}); return saved.themeV === 2 ? saved : { ...saved, theme: 'atenas', themeV: 2 }; })(), // una vez: todos pasan al tema nuevo del logo
@@ -307,6 +308,16 @@ ipcMain.on('win:close', () => { if (win) win.close(); });
 
 handle('packs:list', async () => getPacks());
 
+// RAM de un modpack: la que pide el pack.json (la que puso su creador) y la que el jugador eligió para ese pack (si cambió algo).
+handle('ram:info', async (packId) => {
+  const id = String(packId || '');
+  let manifest = readJson(cachedManifestFile(id), null);
+  if (!manifest || !manifest.ram) { try { const b = builtinPacks().find((p) => p.id === id); if (b) manifest = { ...(manifest || {}), ram: b.ram || (b.manifest && b.manifest.ram) }; } catch { /* sin datos */ } }
+  const packMb = parseMb(manifest && manifest.ram && manifest.ram.max, null);
+  const userMb = (getSettings().ramByPack || {})[id] || null;
+  return { packMb, userMb };
+});
+
 handle('pack:check', async (packId) => {
   const { summary } = await checkPack(packId);
   return summary;
@@ -387,6 +398,7 @@ async function play(packId, mclcAuth) {
     } catch (e) { gameLog(`OptiFine no se pudo preparar: ${e.message}`); }
   }
 
+  sharedFolders.apply(dir, getSettings().shareFolders, gameLog);
   send('game:state', { state: 'preparing', message: 'Preparando Java…' });
   const major = manifest.java || javaMajorFor(manifest.minecraft);
   const javaPath = await ensureJava(major, runtimeDir(), gameLog, (bytes) => {
@@ -408,7 +420,7 @@ async function play(packId, mclcAuth) {
     mclcAuth,
     javaPath,
     customId,
-    ramMb: getSettings().ramMb,
+    ramMb: (getSettings().ramByPack || {})[pack.id] || null, // solo si el jugador la cambió para ESTE modpack; si no, manda la del pack.json
     optimizedJvm: getSettings().jvmOptimized,
     extraJvm: [...cleanJvm(getSettings().extraJvm), '-Datenas.home=' + P.root, ...gameProps(manifest)],
     fullscreen: getSettings().fullscreen === true,
@@ -428,6 +440,7 @@ async function play(packId, mclcAuth) {
     },
   });
   } finally { if (loadWin) loadWin.close(); playing = null; setActivity(); if (win && !win.isDestroyed() && win.isMinimized()) win.restore(); }
+  sharedFolders.finish(dir, getSettings().shareFolders, gameLog);
   if (startedAt) {
     const cur = getSettings();
     setSettings({
@@ -618,7 +631,18 @@ handle('optifine:import', async () => {
 
 handle('settings:set', async (patch) => {
   const allowed = {};
-  if (Number.isFinite(patch.ramMb)) allowed.ramMb = Math.min(Math.max(1024, Math.round(patch.ramMb)), Math.max(1024, Math.floor(require('os').totalmem() / 1048576)));
+  if (patch.ramPack && typeof patch.ramPack.id === 'string' && patch.ramPack.id.length < 100) { // RAM por modpack: null = volver a la del creador del pack
+    const by = { ...(getSettings().ramByPack || {}) };
+    if (Number.isFinite(patch.ramPack.mb)) by[patch.ramPack.id] = Math.min(Math.max(1024, Math.round(patch.ramPack.mb)), Math.max(1024, Math.floor(require('os').totalmem() / 1048576)));
+    else delete by[patch.ramPack.id];
+    allowed.ramByPack = by;
+  }
+  if (patch.shareFolders && typeof patch.shareFolders === 'object') {
+    const cur = getSettings().shareFolders || {};
+    const sf = { ...sharedFolders.DEFAULTS, ...cur };
+    for (const k of Object.keys(sharedFolders.DEFAULTS)) if (typeof patch.shareFolders[k] === 'boolean') sf[k] = patch.shareFolders[k];
+    allowed.shareFolders = sf;
+  }
   if (typeof patch.selectedPack === 'string' || patch.selectedPack === null) allowed.selectedPack = patch.selectedPack;
   for (const k of ['jvmOptimized', 'minimizeOnPlay', 'optifine', 'fx', 'notify', 'fullscreen', 'autoStart', 'hud', 'closeToTray', 'discordRpc', 'discordShowNick', 'sharePresence', 'notifyFriends', 'notifyChat']) if (typeof patch[k] === 'boolean') allowed[k] = patch[k];
   if (typeof patch.extraJvm === 'string') allowed.extraJvm = cleanJvm(patch.extraJvm).join(' ');

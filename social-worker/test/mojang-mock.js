@@ -5,6 +5,7 @@
 // verifyPremium(call, nick, uuid) = flujo completo: /auth/challenge -> join -> /auth/verify
 const joined = new Map();
 let down = false;
+let propagationMs = 0; // retraso con que Mojang "ve" un join recién hecho (como pasa en la realidad)
 const accounts = new Map(); // accessToken -> { name, uuid }
 const realFetch = globalThis.fetch;
 
@@ -17,18 +18,19 @@ globalThis.fetch = async (input, init) => {
     try { b = JSON.parse(init && init.body ? String(init.body) : '{}'); } catch { /* cuerpo raro */ }
     const acct = accounts.get(b.accessToken);
     if (!acct || acct.uuid !== b.selectedProfile || !b.serverId) return new Response(JSON.stringify({ error: 'ForbiddenOperationException' }), { status: 403 });
-    joined.set(b.serverId, { name: acct.name, uuid: acct.uuid });
+    joined.set(b.serverId, { name: acct.name, uuid: acct.uuid, at: Date.now() + propagationMs });
     return new Response(null, { status: 204 });
   }
   const sid = url.searchParams.get('serverId');
   const user = String(url.searchParams.get('username') || '').toLowerCase();
   const j = joined.get(sid);
-  if (!j || j.name.toLowerCase() !== user) return new Response(null, { status: 204 });
+  if (!j || j.at > Date.now() || j.name.toLowerCase() !== user) return new Response(null, { status: 204 });
   joined.delete(sid); // en Mojang el registro también se gasta
   return new Response(JSON.stringify({ id: j.uuid, name: j.name, properties: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
 };
 
-const join = (name, uuid, serverId) => joined.set(serverId, { name, uuid });
+const join = (name, uuid, serverId) => joined.set(serverId, { name, uuid, at: Date.now() + propagationMs });
+const setPropagation = (ms) => { propagationMs = ms; };
 const setDown = (v) => { down = !!v; };
 const registerAccount = (name, uuid, accessToken) => accounts.set(accessToken, { name, uuid });
 const uuidOf = (n) => Buffer.from(String(n).toLowerCase().padEnd(16, '_')).toString('hex').slice(0, 32);
@@ -40,4 +42,4 @@ async function verifyPremium(call, nick, uuid = uuidOf(nick)) {
   return call(nick, '/auth/verify', {});
 }
 
-module.exports = { join, setDown, registerAccount, verifyPremium, uuidOf };
+module.exports = { join, setDown, setPropagation, registerAccount, verifyPremium, uuidOf };
