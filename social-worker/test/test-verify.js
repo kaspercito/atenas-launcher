@@ -115,6 +115,26 @@ globalThis.ATENAS_HASJOINED_WAITS = [0]; // los tests no esperan reintentos salv
   assert.strictEqual((await mojang.verifyPremium((w, p, b) => call(w, p, b, tok('q')), 'Dave', mojang.uuidOf('otro-dave'))).ok, true);
   assert.strictEqual(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM auth_tokens WHERE name = 'dave'").get().n, 1); ok('si el uuid de Mojang cambia, el nuevo dueño reemplaza a los anteriores');
 
+  // ---- Mojang bloquea (403) las IPs de Cloudflare: el relay (una VM normal) hace el hasJoined
+  mojang.setBlockDirect(true);
+  await call('Ines', '/sync');
+  r = await mojang.verifyPremium(call, 'Ines');
+  assert.strictEqual(r.error, 'not_verified'); assert.ok(/403/.test(r.message)); ok('sin relay y con el 403 de Mojang: not_verified (el fallo de antes)');
+  env.MOJANG_RELAY_URL = 'https://relay.test/'; env.MOJANG_RELAY_KEY = mojang.RELAY_KEY;
+  assert.strictEqual((await mojang.verifyPremium(call, 'Ines')).verified, true); ok('con relay configurado, la cuenta se verifica aunque Mojang bloquee al Worker');
+  await call('Jose', '/sync');
+  assert.strictEqual((await mojang.verifyPremium(call, 'Jose')).verified, true); ok('y funciona para cualquier nick');
+  env.MOJANG_RELAY_KEY = 'clave-equivocada';
+  await call('Karla', '/sync');
+  r = await mojang.verifyPremium(call, 'Karla');
+  assert.strictEqual(r.error, 'not_verified'); assert.ok(/relay:403/.test(r.message)); ok('con la clave del relay mal puesta falla y el mensaje lo dice (relay:403)');
+  env.MOJANG_RELAY_KEY = mojang.RELAY_KEY;
+  mojang.setRelayDown(true); mojang.setBlockDirect(false);
+  await call('Luis', '/sync');
+  assert.strictEqual((await mojang.verifyPremium(call, 'Luis')).verified, true); ok('si el relay se cae pero Mojang no bloquea, cae al hasJoined directo');
+  mojang.setRelayDown(false);
+  delete env.MOJANG_RELAY_URL; delete env.MOJANG_RELAY_KEY;
+
   // ---- validaciones
   assert.strictEqual((await call('x', '/auth/challenge', {})).status, 400); ok('nick inválido rechazado en /auth/*');
   const noTok = await worker.fetch(new Request('https://x.test/auth/challenge', { method: 'POST', headers: { 'x-name': 'Eve_01' }, body: '{}' }), env);

@@ -44,6 +44,7 @@ function createSocial({ url, file, getName, getAuth, timeoutMs = 8000 }) {
   let verifying = null;                    // { name, promise }: evita verificar dos veces a la vez
 
   async function rawCall(route, body = {}) {
+    const routeTimeout = route === '/auth/verify' ? Math.max(timeoutMs, 25000) : timeoutMs; // el servicio puede tardar varios segundos preguntando a Mojang
     if (!configured) throw new SocialError('not_configured', 'El servicio de amigos todavía no está activado (falta la URL en launcher.config.json).');
     const name = getName();
     if (!name) throw new SocialError('no_account', 'Inicia sesión para usar amigos y chat.');
@@ -53,7 +54,7 @@ function createSocial({ url, file, getName, getAuth, timeoutMs = 8000 }) {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-name': name, 'x-token': identity.token },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(routeTimeout),
       });
     } catch { throw new SocialError('offline', 'No se pudo conectar con el servicio de amigos. Revisa tu internet.'); }
     let j = null;

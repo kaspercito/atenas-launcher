@@ -1,17 +1,20 @@
 'use strict';
 /**
  * Carpetas compartidas con la .minecraft normal, para no reconfigurar todo en cada instancia.
- *  - Carpetas (resourcepacks, screenshots, logs, config): se enlazan con una "junction" (en Windows no pide permisos de administrador)
+ *  - Carpetas (resourcepacks, screenshots, logs, saves, config): se enlazan con una "junction" (en Windows no pide permisos de administrador)
  *    o un symlink (Linux/Mac). Lo que ya había en la instancia se MEZCLA con la carpeta compartida sin pisar nada y luego se enlaza.
- *  - servers.dat (la lista de servidores): Minecraft lo reescribe cambiando el archivo, así que un enlace no sirve. Se sincroniza:
- *    antes de jugar gana el más nuevo y al cerrar el juego se copia de vuelta a .minecraft.
+ *  - Archivos (servers.dat = lista de servidores, options.txt = ajustes del juego): Minecraft los reescribe cambiando el archivo, así que
+ *    un enlace no sirve. Se usa SIEMPRE el de .minecraft: antes de jugar se copia a la instancia y al cerrar el juego vuelve a .minecraft.
+ *    Antes de reemplazar un archivo distinto se deja una copia "<archivo>.atenas-bak". options.txt no se sincroniza entre versiones con
+ *    formato de teclas distinto (1.12 o menor guarda números; 1.13 o mayor guarda nombres): mezclarlas dejaría los controles rotos.
  */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const DIRS = { resourcepacks: 'resourcepacks', screenshots: 'screenshots', logs: 'logs', config: 'config' };
-const DEFAULTS = { resourcepacks: true, screenshots: true, logs: true, servers: true, config: false };
+const DIRS = { resourcepacks: 'resourcepacks', screenshots: 'screenshots', logs: 'logs', saves: 'saves', config: 'config' };
+const FILES = { servers: 'servers.dat', options: 'options.txt' };
+const DEFAULTS = { resourcepacks: true, screenshots: true, logs: true, saves: true, servers: true, options: true, config: false };
 
 function minecraftDir() {
   if (process.env.ATENAS_MC_DIR) return process.env.ATENAS_MC_DIR;
@@ -61,20 +64,51 @@ function unlinkDir(instanceDir, name) {
   return `${name}: vuelve a ser propia de la instancia (con una copia de lo compartido)`;
 }
 
-const mtime = (p) => { const s = lstat(p); return s && s.isFile() ? s.mtimeMs : 0; };
-
-/** Copia el más nuevo sobre el más viejo. dir: 'toInstance' (antes de jugar) o 'toMinecraft' (al cerrar). */
-function syncFile(instanceDir, mcDir, file, dir) {
-  const a = path.join(mcDir, file), b = path.join(instanceDir, file);
-  const ma = mtime(a), mb = mtime(b);
-  if (dir === 'toInstance') {
-    if (ma > mb) { fs.mkdirSync(instanceDir, { recursive: true }); fs.copyFileSync(a, b); return `${file}: copiado desde .minecraft`; }
-  } else if (mb > ma) { fs.mkdirSync(mcDir, { recursive: true }); fs.copyFileSync(b, a); return `${file}: guardado también en .minecraft`; }
+/** 'legacy' (1.12 o menor: teclas como números), 'modern' (1.13 o mayor: teclas con nombre) o '' si no se sabe. */
+function optionsFormat(file) {
+  try {
+    const t = fs.readFileSync(file, 'utf8');
+    if (/^key_key\.attack:-?\d+\s*$/m.test(t)) return 'legacy';
+    if (/^key_key\.attack:key\./m.test(t)) return 'modern';
+  } catch { /* sin archivo */ }
   return '';
+}
+const formatOfVersion = (mc) => {
+  const minor = Number((/^1\.(\d+)/.exec(mc || '') || [])[1]);
+  return Number.isFinite(minor) ? (minor <= 12 ? 'legacy' : 'modern') : '';
+};
+
+/** Copia from -> to solo si el contenido cambia; si había un archivo distinto en destino, deja <archivo>.atenas-bak. */
+function copyFile(from, to) {
+  const f = lstat(from);
+  if (!f || !f.isFile()) return false;
+  const t = lstat(to);
+  if (t && t.isFile()) {
+    if (fs.readFileSync(from).equals(fs.readFileSync(to))) return false;
+    try { fs.copyFileSync(to, to + '.atenas-bak'); } catch { /* la copia de seguridad es opcional */ }
+  }
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.copyFileSync(from, to);
+  return true;
+}
+
+/**
+ * Usa el archivo de .minecraft. dir: 'toInstance' (antes de jugar: .minecraft -> instancia) o 'toMinecraft' (al cerrar: instancia -> .minecraft).
+ * ctx.minecraft (p. ej. "1.20.1") sirve para no mezclar formatos distintos de options.txt.
+ */
+function syncFile(instanceDir, mcDir, file, dir, ctx = {}) {
+  const a = path.join(mcDir, file), b = path.join(instanceDir, file);
+  if (file === 'options.txt') {
+    const fa = optionsFormat(a), fb = optionsFormat(b), fv = formatOfVersion(ctx.minecraft);
+    const mine = fv || fb; // el formato que habla esta instancia
+    if (mine && fa && mine !== fa) return `${file}: no se sincroniza (el de .minecraft es de otra versión de Minecraft y mezclarlos rompería los controles)`;
+  }
+  if (dir === 'toInstance') return copyFile(a, b) ? `${file}: ahora usa el de .minecraft` : '';
+  return copyFile(b, a) ? `${file}: guardado en .minecraft` : '';
 }
 
 /** Antes de abrir el juego. Nunca lanza: un fallo aquí no debe impedir jugar. */
-function apply(instanceDir, opts = {}, log = () => {}) {
+function apply(instanceDir, opts = {}, log = () => {}, ctx = {}) {
   const on = { ...DEFAULTS, ...opts };
   const mcDir = minecraftDir();
   for (const [key, name] of Object.entries(DIRS)) {
@@ -83,13 +117,17 @@ function apply(instanceDir, opts = {}, log = () => {}) {
       if (msg) log(`[Atenas] Carpetas compartidas · ${msg}`);
     } catch (e) { log(`[Atenas] Carpetas compartidas · ${name}: no se pudo (${e.code || e.message}); se usa la de la instancia`); }
   }
-  try { if (on.servers) { const m = syncFile(instanceDir, mcDir, 'servers.dat', 'toInstance'); if (m) log(`[Atenas] Carpetas compartidas · ${m}`); } } catch (e) { log(`[Atenas] servers.dat: ${e.message}`); }
+  for (const [key, file] of Object.entries(FILES)) {
+    try { if (on[key]) { const m = syncFile(instanceDir, mcDir, file, 'toInstance', ctx); if (m) log(`[Atenas] Carpetas compartidas · ${m}`); } } catch (e) { log(`[Atenas] ${file}: ${e.message}`); }
+  }
 }
 
-/** Al cerrar el juego: la lista de servidores vuelve a .minecraft. */
-function finish(instanceDir, opts = {}, log = () => {}) {
-  if (!{ ...DEFAULTS, ...opts }.servers) return;
-  try { const m = syncFile(instanceDir, minecraftDir(), 'servers.dat', 'toMinecraft'); if (m) log(`[Atenas] Carpetas compartidas · ${m}`); } catch (e) { log(`[Atenas] servers.dat: ${e.message}`); }
+/** Al cerrar el juego: la lista de servidores y los ajustes vuelven a .minecraft. */
+function finish(instanceDir, opts = {}, log = () => {}, ctx = {}) {
+  const on = { ...DEFAULTS, ...opts };
+  for (const [key, file] of Object.entries(FILES)) {
+    try { if (on[key]) { const m = syncFile(instanceDir, minecraftDir(), file, 'toMinecraft', ctx); if (m) log(`[Atenas] Carpetas compartidas · ${m}`); } } catch (e) { log(`[Atenas] ${file}: ${e.message}`); }
+  }
 }
 
 module.exports = { minecraftDir, apply, finish, linkDir, unlinkDir, syncFile, DEFAULTS };

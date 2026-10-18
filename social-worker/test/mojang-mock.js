@@ -5,13 +5,25 @@
 // verifyPremium(call, nick, uuid) = flujo completo: /auth/challenge -> join -> /auth/verify
 const joined = new Map();
 let down = false;
+let blockDirect = false; // simula que Mojang devuelve 403 a las IPs de Cloudflare (hasJoined directo desde el Worker)
+let relayDown = false;
+const RELAY_KEY = 'clave-relay-de-prueba';
 let propagationMs = 0; // retraso con que Mojang "ve" un join recién hecho (como pasa en la realidad)
 const accounts = new Map(); // accessToken -> { name, uuid }
 const realFetch = globalThis.fetch;
 
 globalThis.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input.url);
-  if (url.hostname !== 'sessionserver.mojang.com') return realFetch(input, init);
+  const isRelay = url.hostname === 'relay.test';
+  if (url.hostname !== 'sessionserver.mojang.com' && !isRelay) return realFetch(input, init);
+  if (isRelay) { // el relay de la VM: reenvía a Mojang desde una IP que no está bloqueada
+    if (relayDown) throw new Error('relay caído (simulado)');
+    const hdr = new Headers((init && init.headers) || {});
+    if (hdr.get('x-relay-key') !== RELAY_KEY) return new Response('{"error":"forbidden"}', { status: 403 });
+    url.hostname = 'sessionserver.mojang.com'; url.pathname = '/session/minecraft/hasJoined';
+  } else if (blockDirect && url.pathname.includes('hasJoined')) {
+    return new Response("<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Transitional//EN'><html>blocked</html>", { status: 403 });
+  }
   if (down) throw new Error('mojang caído (simulado)');
   if (url.pathname === '/session/minecraft/join') {
     let b = {};
@@ -32,6 +44,8 @@ globalThis.fetch = async (input, init) => {
 const join = (name, uuid, serverId) => joined.set(serverId, { name, uuid, at: Date.now() + propagationMs });
 const setPropagation = (ms) => { propagationMs = ms; };
 const setDown = (v) => { down = !!v; };
+const setBlockDirect = (v) => { blockDirect = !!v; };
+const setRelayDown = (v) => { relayDown = !!v; };
 const registerAccount = (name, uuid, accessToken) => accounts.set(accessToken, { name, uuid });
 const uuidOf = (n) => Buffer.from(String(n).toLowerCase().padEnd(16, '_')).toString('hex').slice(0, 32);
 
@@ -42,4 +56,4 @@ async function verifyPremium(call, nick, uuid = uuidOf(nick)) {
   return call(nick, '/auth/verify', {});
 }
 
-module.exports = { join, setDown, setPropagation, registerAccount, verifyPremium, uuidOf };
+module.exports = { RELAY_KEY, setBlockDirect, setRelayDown, join, setDown, setPropagation, registerAccount, verifyPremium, uuidOf };

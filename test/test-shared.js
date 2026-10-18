@@ -47,5 +47,47 @@ w(path.join(inst, 'servers.dat'), 'v2'); // el juego añadió un servidor
 S.finish(inst, {}, () => {});
 assert.strictEqual(fs.readFileSync(path.join(mc, 'servers.dat'), 'utf8'), 'v2'); ok('al cerrar, la lista nueva vuelve a .minecraft');
 S.apply(inst, { servers: false }, () => {}); S.finish(inst, { servers: false }, () => {});
+
+// ---- mundos (saves): se enlazan y se mezclan igual que el resto
+w(path.join(mc, 'saves', 'MiMundo', 'level.dat'), 'M');
+w(path.join(inst, 'saves', 'DelPack', 'level.dat'), 'P');
+S.apply(inst, {}, () => {});
+assert.ok(fs.lstatSync(path.join(inst, 'saves')).isSymbolicLink()); ok('saves queda enlazada');
+assert.ok(fs.existsSync(path.join(inst, 'saves', 'MiMundo', 'level.dat')) && fs.existsSync(path.join(mc, 'saves', 'DelPack', 'level.dat'))); ok('los mundos de .minecraft y los del pack se ven juntos y no se pierde ninguno');
+S.apply(inst, { saves: false }, () => {});
+assert.ok(!fs.lstatSync(path.join(inst, 'saves')).isSymbolicLink() && fs.existsSync(path.join(inst, 'saves', 'MiMundo', 'level.dat'))); ok('apagar saves deja carpeta propia con copia');
+S.apply(inst, {}, () => {});
+
+// ---- servers.dat: gana SIEMPRE el de .minecraft (aunque el de la instancia sea más nuevo), con copia de seguridad
+w(path.join(mc, 'servers.dat'), 'MC-OFICIAL'); fs.utimesSync(path.join(mc, 'servers.dat'), new Date(Date.now() - 60000), new Date(Date.now() - 60000));
+w(path.join(inst, 'servers.dat'), 'INSTANCIA-NUEVA');
+S.apply(inst, {}, () => {});
+assert.strictEqual(fs.readFileSync(path.join(inst, 'servers.dat'), 'utf8'), 'MC-OFICIAL'); ok('servers.dat: se usa el de .minecraft aunque el de la instancia sea más nuevo');
+assert.strictEqual(fs.readFileSync(path.join(inst, 'servers.dat.atenas-bak'), 'utf8'), 'INSTANCIA-NUEVA'); ok('el que se reemplazó queda como .atenas-bak');
+w(path.join(inst, 'servers.dat'), 'MC-OFICIAL+nuevo'); S.finish(inst, {}, () => {});
+assert.strictEqual(fs.readFileSync(path.join(mc, 'servers.dat'), 'utf8'), 'MC-OFICIAL+nuevo'); ok('al cerrar, lo nuevo vuelve a .minecraft');
+
+// ---- options.txt
+const LEG = 'key_key.attack:-100\nfov:0.5\n', MOD = 'version:3465\nkey_key.attack:key.mouse.left\nfov:0.5\n';
+fs.rmSync(path.join(inst, 'options.txt'), { force: true }); fs.rmSync(path.join(mc, 'options.txt'), { force: true });
+w(path.join(mc, 'options.txt'), MOD);
+S.apply(inst, {}, () => {}, { minecraft: '1.20.1' });
+assert.strictEqual(fs.readFileSync(path.join(inst, 'options.txt'), 'utf8'), MOD); ok('options.txt: una instancia 1.20.1 usa el de .minecraft (mismo formato)');
+w(path.join(inst, 'options.txt'), MOD.replace('0.5', '1.0')); S.finish(inst, {}, () => {}, { minecraft: '1.20.1' });
+assert.ok(fs.readFileSync(path.join(mc, 'options.txt'), 'utf8').includes('fov:1.0')); ok('options.txt: el cambio hecho jugando vuelve a .minecraft');
+// instancia 1.8.9 (formato viejo) NO debe tocar el options.txt moderno
+fs.rmSync(path.join(inst, 'options.txt'), { force: true });
+const logsO = []; S.apply(inst, {}, (l) => logsO.push(l), { minecraft: '1.8.9' });
+assert.ok(!fs.existsSync(path.join(inst, 'options.txt'))); ok('1.8.9 no recibe el options.txt de una 1.20.1');
+assert.ok(logsO.some((l) => /options\.txt: no se sincroniza/.test(l))); ok('y lo dice en el registro');
+w(path.join(inst, 'options.txt'), LEG); const before = fs.readFileSync(path.join(mc, 'options.txt'), 'utf8');
+S.finish(inst, {}, () => {}, { minecraft: '1.8.9' });
+assert.strictEqual(fs.readFileSync(path.join(mc, 'options.txt'), 'utf8'), before); ok('1.8.9 al cerrar no pisa el options.txt moderno de .minecraft');
+// sin options.txt en .minecraft: la instancia lo crea y se guarda
+fs.rmSync(path.join(mc, 'options.txt'), { force: true }); S.finish(inst, {}, () => {}, { minecraft: '1.8.9' });
+assert.strictEqual(fs.readFileSync(path.join(mc, 'options.txt'), 'utf8'), LEG); ok('si .minecraft no tenía options.txt se crea con el de la instancia');
+// apagar la opción no toca nada
+w(path.join(inst, 'options.txt'), 'solo-instancia'); S.apply(inst, { options: false }, () => {}, { minecraft: '1.8.9' }); S.finish(inst, { options: false }, () => {}, { minecraft: '1.8.9' });
+assert.strictEqual(fs.readFileSync(path.join(inst, 'options.txt'), 'utf8'), 'solo-instancia'); assert.strictEqual(fs.readFileSync(path.join(mc, 'options.txt'), 'utf8'), LEG); ok('con la opción apagada no se copia nada');
 fs.rmSync(root, { recursive: true, force: true });
 console.log(`carpetas compartidas: todo bien (${n} comprobaciones)`);

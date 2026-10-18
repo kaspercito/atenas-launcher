@@ -719,8 +719,8 @@
     const range = $('ramRange');
     range.max = String(max);
     refreshRam();
-    const sh = { resourcepacks: true, screenshots: true, logs: true, servers: true, config: false, ...(state.settings.shareFolders || {}) };
-    $('shResourcepacks').checked = sh.resourcepacks; $('shScreenshots').checked = sh.screenshots; $('shServers').checked = sh.servers; $('shLogs').checked = sh.logs; $('shConfig').checked = sh.config;
+    const sh = { resourcepacks: true, screenshots: true, logs: true, saves: true, servers: true, options: true, config: false, ...(state.settings.shareFolders || {}) };
+    $('shResourcepacks').checked = sh.resourcepacks; $('shScreenshots').checked = sh.screenshots; $('shSaves').checked = sh.saves; $('shOptions').checked = sh.options; $('shServers').checked = sh.servers; $('shLogs').checked = sh.logs; $('shConfig').checked = sh.config;
     $('optJvm').checked = state.settings.jvmOptimized !== false;
     $('optMin').checked = state.settings.minimizeOnPlay !== false;
     $('optFx').checked = state.settings.fx !== false;
@@ -876,7 +876,7 @@
     $('ramRange').addEventListener('input', updateRamLabel);
     $('ramRange').addEventListener('change', async () => { if (state.selected) await patchSettings({ ramPack: { id: state.selected, mb: Number($('ramRange').value) } }); refreshRam(); });
     $('ramReset').addEventListener('click', async () => { await patchSettings({ ramPack: { id: state.selected, mb: null } }); refreshRam(); toast('Vuelve a usar la RAM del modpack'); });
-    for (const [id, k] of [['shResourcepacks', 'resourcepacks'], ['shScreenshots', 'screenshots'], ['shServers', 'servers'], ['shLogs', 'logs'], ['shConfig', 'config']]) $(id).addEventListener('change', (e) => patchSettings({ shareFolders: { [k]: e.target.checked } }));
+    for (const [id, k] of [['shResourcepacks', 'resourcepacks'], ['shScreenshots', 'screenshots'], ['shSaves', 'saves'], ['shOptions', 'options'], ['shServers', 'servers'], ['shLogs', 'logs'], ['shConfig', 'config']]) $(id).addEventListener('change', (e) => patchSettings({ shareFolders: { [k]: e.target.checked } }));
     $('optJvm').addEventListener('change', (e) => patchSettings({ jvmOptimized: e.target.checked }));
     $('optMin').addEventListener('change', (e) => patchSettings({ minimizeOnPlay: e.target.checked }));
     $('optFx').addEventListener('change', async (e) => { await patchSettings({ fx: e.target.checked }); applyFx(); });

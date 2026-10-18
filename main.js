@@ -64,7 +64,7 @@ function writeJson(file, data) {
 }
 
 const getSettings = () => ({
-  ramByPack: {}, shareFolders: { resourcepacks: true, screenshots: true, logs: true, servers: true, config: false }, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, optifine: true, fx: true, notify: true, theme: 'atenas', themeV: 2,
+  ramByPack: {}, shareFolders: { resourcepacks: true, screenshots: true, logs: true, saves: true, servers: true, options: true, config: false }, selectedPack: null, jvmOptimized: true, minimizeOnPlay: true, optifine: true, fx: true, notify: true, theme: 'atenas', themeV: 2,
   fullscreen: false, extraJvm: '', autoStart: false, hud: true, closeToTray: true, discordRpc: true, discordShowNick: true, sharePresence: true, friends: [], friendsMigrated: false, notifyChat: true,
   seenNews: {}, playtime: {}, lastPlayed: {},
   ...(() => { const saved = readJson(settingsFile(), {}); return saved.themeV === 2 ? saved : { ...saved, theme: 'atenas', themeV: 2 }; })(), // una vez: todos pasan al tema nuevo del logo
@@ -398,7 +398,7 @@ async function play(packId, mclcAuth) {
     } catch (e) { gameLog(`OptiFine no se pudo preparar: ${e.message}`); }
   }
 
-  sharedFolders.apply(dir, getSettings().shareFolders, gameLog);
+  sharedFolders.apply(dir, getSettings().shareFolders, gameLog, { minecraft: manifest.minecraft });
   send('game:state', { state: 'preparing', message: 'Preparando Java…' });
   const major = manifest.java || javaMajorFor(manifest.minecraft);
   const javaPath = await ensureJava(major, runtimeDir(), gameLog, (bytes) => {
@@ -440,7 +440,7 @@ async function play(packId, mclcAuth) {
     },
   });
   } finally { if (loadWin) loadWin.close(); playing = null; setActivity(); if (win && !win.isDestroyed() && win.isMinimized()) win.restore(); }
-  sharedFolders.finish(dir, getSettings().shareFolders, gameLog);
+  sharedFolders.finish(dir, getSettings().shareFolders, gameLog, { minecraft: manifest.minecraft });
   if (startedAt) {
     const cur = getSettings();
     setSettings({

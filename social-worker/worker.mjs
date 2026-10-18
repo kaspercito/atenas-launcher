@@ -18,7 +18,10 @@ const MSG_COOLDOWN_MS = 500;
 const KEEP_MSGS = 200;            // mensajes que se guardan por conversación
 const MOJANG_HAS_JOINED = 'https://sessionserver.mojang.com/session/minecraft/hasJoined';
 const CHALLENGE_MS = 60000;       // tiempo que vale un desafío de verificación
-const HAS_JOINED_WAITS = [0, 400, 600, 900]; // ms de espera antes de cada intento a Mojang (hasJoined tarda en verse tras joinServer)
+const HAS_JOINED_WAITS = [0, 400, 800, 1200, 1600]; // ms de espera antes de cada intento a Mojang (hasJoined tarda en verse tras joinServer). Los clientes esperan hasta 25 s esta llamada.
+// Relay opcional (social-worker/relay/): Mojang bloquea (403) las IPs de Cloudflare Workers, asi que el hasJoined se hace desde una maquina
+// normal (tu VM de Azure). Se activa con los secretos MOJANG_RELAY_URL y MOJANG_RELAY_KEY; sin ellos se habla directo con Mojang como antes.
+const RELAY = { url: '', key: '' };
 const MAX_CHALLENGES = 8;         // desafíos vivos a la vez por nick
 const MAX_TOKENS = 5;             // instalaciones (PC) que una cuenta verificada puede tener enlazadas
 
@@ -394,16 +397,36 @@ const routes = {
     // Mojang a veces tarda unos cientos de ms en "ver" el joinServer que el cliente acaba de hacer: si el primer hasJoined
     // dice 204/403 se reintenta unas veces antes de dar la cuenta por no verificada.
     const waits = globalThis.ATENAS_HASJOINED_WAITS || HAS_JOINED_WAITS;
-    const url = MOJANG_HAS_JOINED + '?username=' + encodeURIComponent(me.display) + '&serverId=' + encodeURIComponent(ch.sid);
+    const qs = '?username=' + encodeURIComponent(me.display) + '&serverId=' + encodeURIComponent(ch.sid);
+    const direct = MOJANG_HAS_JOINED + qs;
     let res = null;
+    const trace = []; // diagnóstico: qué respondió Mojang en cada intento (204 = no ve el joinServer, 403 = nos bloquea, 429 = límite)
+    // Pregunta a Mojang por el relay (si hay) y, si el relay no contesta o Mojang lo bloquea, directo desde el Worker.
+    const ask = async () => {
+      if (RELAY.url) {
+        const t0 = Date.now();
+        try {
+          const r = await fetch(RELAY.url + '/hasJoined' + qs, { headers: { accept: 'application/json', 'x-relay-key': RELAY.key }, signal: AbortSignal.timeout(5000) });
+          trace.push('relay:' + r.status + '@' + (Date.now() - t0) + 'ms');
+          if (r.status === 200 || r.status === 204) return r;
+        } catch (e) { trace.push('relay:' + String((e && e.name) || e) + '@' + (Date.now() - t0) + 'ms'); }
+      }
+      const t1 = Date.now();
+      const r = await fetch(direct, { headers: { accept: 'application/json', 'cache-control': 'no-cache', 'user-agent': 'AtenasSocial/1.0' }, signal: AbortSignal.timeout(4000) });
+      trace.push(r.status + '@' + (Date.now() - t1) + 'ms');
+      return r;
+    };
     for (let i = 0; i < waits.length; i++) {
       if (waits[i]) await new Promise((r) => setTimeout(r, waits[i]));
-      try {
-        res = await fetch(url, { headers: { accept: 'application/json', 'cache-control': 'no-cache', 'user-agent': 'AtenasSocial/1.0' }, cf: { cacheTtl: 0, cacheEverything: false }, signal: AbortSignal.timeout(4000) });
-      } catch { throw bad('mojang_down', 'No se pudo hablar con Mojang. Inténtalo en un momento.', 503); }
+      try { res = await ask(); }
+      catch (e) { throw bad('mojang_down', 'No se pudo hablar con Mojang (' + String((e && e.name) || e) + '). Inténtalo en un momento. [' + trace.join(', ') + ']', 503); }
       if (res.status !== 204 && res.status !== 403) break; // 200 (o un error real): no hace falta reintentar
     }
-    if (res.status === 204 || res.status === 403) throw bad('not_verified', 'Mojang no confirmó esta cuenta (cuenta sin conexión o sesión caducada).', 401);
+    if (res.status === 204 || res.status === 403) {
+      let snip = '';
+      if (res.status === 403) { try { snip = ' body=' + (await res.text()).slice(0, 120); } catch { /* sin cuerpo */ } }
+      throw bad('not_verified', 'Mojang no confirmó esta cuenta (cuenta sin conexión o sesión caducada). [' + (RELAY.url ? 'relay' : 'worker→mojang') + ': ' + trace.join(', ') + snip + ']', 401);
+    }
     if (!res.ok) throw bad('mojang_down', 'Mojang respondió con error ' + res.status + '. Inténtalo en un momento.', 503);
     let prof = null;
     try { prof = await res.json(); } catch { /* respuesta rara */ }
@@ -570,6 +593,8 @@ const routes = {
 
 export default {
   async fetch(req, env) {
+    RELAY.url = String(env.MOJANG_RELAY_URL || '').trim().replace(/\/+$/, '');
+    RELAY.key = String(env.MOJANG_RELAY_KEY || '');
     const url = new URL(req.url);
     if (req.method === 'GET') {
       if (url.pathname === '/admin') return new Response(ADMIN_HTML, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' } });
