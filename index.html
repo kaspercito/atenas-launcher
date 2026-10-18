@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Atenas Client · el launcher de Minecraft de Atenas</title>
+<meta name="description" content="Atenas Client instala Java y el loader, actualiza tus mods solo y te deja jugar con amigos. Incluye el cliente PvP 1.8.9. Gratis para Windows.">
+<meta name="theme-color" content="#06070f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Atenas Client · el launcher de Minecraft de Atenas">
+<meta property="og:description" content="Mods siempre al día, amigos, chat y cliente PvP 1.8.9. Gratis para Windows.">
+<meta property="og:image" content="https://kaspercito.github.io/atenas-launcher/icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="preload" href="cinzel-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Atenas Client","applicationCategory":"GameApplication","operatingSystem":"Windows","description":"Launcher de Minecraft con modpacks propios, actualizaciones automáticas y cliente PvP 1.8.9.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT"}</script>
+<style>
+@font-face{font-family:Cinzel;font-weight:600;font-display:swap;src:url(cinzel-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:Cinzel;font-weight:700;font-display:swap;src:url(cinzel-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:400;font-display:swap;src:url(inter-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:500;font-display:swap;src:url(inter-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:600;font-display:swap;src:url(inter-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:700;font-display:swap;src:url(inter-latin-700-normal.woff2) format("woff2")}
+:root{--bg:#06070f;--bg2:#0a0c1a;--glass:rgba(255,255,255,.04);--glass2:rgba(255,255,255,.07);--line:rgba(150,140,255,.18);--tx:#eef0fa;--mu:#9ba2c4;--blue:#5b7cff;--vio:#9b5cff;--pink:#e05bc0;--cy:#5ee1ff;--ok:#34d399;
+--grad:linear-gradient(110deg,#4b66e8,#8240ee 55%,#c03fa3);--disp:Cinzel,Georgia,serif;--txt:Inter,system-ui,"Segoe UI",sans-serif;--mono:ui-monospace,"Cascadia Code",Consolas,monospace;--w:1180px;--g:clamp(18px,4vw,44px)}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:84px}
+@media(prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:var(--bg);color:var(--tx);font:400 1rem/1.65 var(--txt);overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(rgba(150,140,255,.05) 1px,transparent 1px) 0 0/56px 56px,linear-gradient(90deg,rgba(150,140,255,.05) 1px,transparent 1px) 0 0/56px 56px;-webkit-mask-image:radial-gradient(80% 60% at 50% 0,#000,transparent);mask-image:radial-gradient(80% 60% at 50% 0,#000,transparent)}
+img,svg{display:block;max-width:100%}a{color:inherit}
+:focus-visible{outline:2px solid var(--cy);outline-offset:3px;border-radius:6px}
+.wrap{width:min(100% - 2*var(--g),var(--w));margin-inline:auto}
+.skip{position:absolute;left:12px;top:-60px;background:#fff;color:#000;padding:10px 14px;border-radius:8px;z-index:60;font-weight:600}.skip:focus{top:12px}
+h1,h2,h3{margin:0;font-family:var(--disp);text-wrap:balance}
+.tag{display:inline-flex;align-items:center;gap:8px;font:500 .78rem/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--cy)}
+.tag::before{content:"";width:22px;height:1px;background:var(--cy)}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.6em;min-height:54px;padding:0 28px;border-radius:14px;border:0;font:700 1.02rem/1 var(--txt);color:#fff;text-decoration:none;cursor:pointer;background:var(--grad);box-shadow:0 14px 36px -10px rgba(130,64,238,.8),inset 0 1px 0 rgba(255,255,255,.28);transition:transform .15s,box-shadow .15s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 20px 44px -10px rgba(130,64,238,.95),inset 0 1px 0 rgba(255,255,255,.3)}
+.btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.btn--sm{min-height:42px;padding:0 20px;font-size:.92rem;border-radius:11px}
+.btn--ghost{background:var(--glass);border:1px solid var(--line);box-shadow:none}
+.btn--ghost:hover{background:var(--glass2);box-shadow:none}
+/* nav */
+.nav{position:fixed;top:0;left:0;right:0;z-index:40;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:rgba(6,7,15,.72);border-bottom:1px solid var(--line)}
+.nav__in{display:flex;align-items:center;gap:26px;height:68px}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;font:700 1.12rem/1 var(--disp);letter-spacing:.08em}
+.brand img{width:36px;height:36px;border-radius:10px}
+.nav nav{margin-left:auto;display:flex;gap:24px}
+.nav nav a{font-size:.9rem;color:var(--mu);text-decoration:none;padding:6px 0;border-bottom:1px solid transparent}
+.nav nav a:hover{color:#fff;border-color:var(--vio)}
+@media(max-width:900px){.nav nav{display:none}.nav .btn{margin-left:auto}}
+/* hero */
+.hero{position:relative;padding:150px 0 90px;overflow:hidden;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(55% 50% at 85% 5%,rgba(75,102,232,.45),transparent 70%),radial-gradient(45% 45% at 0 90%,rgba(192,63,163,.28),transparent 70%)}
+.hero__g{display:grid;gap:clamp(36px,5vw,72px);align-items:center}
+@media(min-width:980px){.hero__g{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}}
+h1{font-size:clamp(2.4rem,5.6vw,4.3rem);line-height:1.06;letter-spacing:.01em;margin-top:20px}
+.lead{font-size:clamp(1.05rem,1.5vw,1.2rem);color:var(--mu);max-width:33em;margin:22px 0 0}
+.cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:32px}
+.dlmeta{margin:16px 0 0;font:500 .82rem/1.5 var(--mono);color:var(--mu)}
+.plat{margin:8px 0 0;font-size:.9rem;color:#ffd48a}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin:26px 0 0;padding:0;list-style:none}
+.chips li{padding:7px 14px;border:1px solid var(--line);border-radius:999px;background:var(--glass);font-size:.85rem;color:#d4d8ee}
+.chips li::before{content:"";display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+/* maqueta */
+.mock{container-type:inline-size}
+.win{font-size:calc(100cqw/58);aspect-ratio:16/11.4;display:flex;flex-direction:column;background:#0b0d1c;border:1px solid rgba(160,150,255,.32);border-radius:1.5em;overflow:hidden;box-shadow:0 40px 90px -30px #000,0 30px 120px -30px rgba(130,64,238,.65)}
+.win__bar{display:flex;align-items:center;gap:1em;padding:0 1.4em;height:3em;background:#080a16;border-bottom:1px solid rgba(255,255,255,.06);color:var(--mu);font-weight:600}
+.win__bar i{margin-left:auto;font:500 .9em var(--mono);font-style:normal;color:var(--cy)}
+.win__b{flex:1;min-height:0;display:grid;grid-template-columns:6.6em 1fr}
+.rail{display:flex;flex-direction:column;align-items:center;gap:.5em;padding:1.3em 0;background:#080a16;border-right:1px solid rgba(255,255,255,.06)}
+.rail img{width:3.4em;height:3.4em;border-radius:1em;margin-bottom:.8em}
+.ri{display:flex;flex-direction:column;align-items:center;gap:.3em;width:5.2em;padding:.65em 0;border-radius:1em;color:#8d93b0;font-size:.9em}
+.ri svg{width:2em;height:2em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ri.on{color:#fff;background:linear-gradient(160deg,rgba(91,124,255,.3),rgba(155,92,255,.3));box-shadow:inset 0 0 0 1px rgba(160,150,255,.4)}
+.stage{display:flex;flex-direction:column;gap:1.2em;padding:1.5em;background:radial-gradient(70% 60% at 100% 0,rgba(124,58,237,.22),transparent 70%)}
+.launch{flex:1;min-height:0;display:grid;grid-template-columns:12em 1fr;gap:1.5em;padding:1.2em;border-radius:1.2em;background:var(--bg2);border:1px solid var(--line)}
+.art{border-radius:1em;background:linear-gradient(150deg,#3b4fd8,#7c3aed 55%,#be3fa0);display:grid;place-items:center;font:700 5.5em/1 var(--disp);color:rgba(255,255,255,.92)}
+.info{display:flex;flex-direction:column;min-width:0}
+.info small{font:600 .85em var(--mono);color:#a99bff}
+.info h3{font-size:2em;margin-top:.25em}
+.info p{margin:.4em 0 0;color:#8d93b0;font-size:.95em;line-height:1.4}
+.live{margin-top:.6em;font-weight:600;font-size:.9em;color:var(--ok)}
+.dock{margin-top:auto}
+.prog{position:relative;height:1.3em;font-size:.9em;color:#aab0cc}
+.prog span,.prog em{position:absolute;left:0}.prog em{font-style:normal;color:var(--ok);font-weight:600;opacity:1}.prog span{opacity:0}
+.bar{height:.55em;border-radius:1em;background:rgba(255,255,255,.08);overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--blue),var(--vio),var(--pink))}
+.play{margin-top:.9em;display:grid;place-items:center;height:3.2em;border-radius:1em;font:700 1.2em var(--txt);background:var(--grad);box-shadow:0 .8em 2em -.6em rgba(130,64,238,.9)}
+.mock__cap{margin:12px 4px 0;font:.72rem var(--mono);color:#6f7698;text-align:right}
+@media(prefers-reduced-motion:no-preference){
+.win{animation:rise .9s cubic-bezier(.2,.7,.2,1) both}
+.bar i{width:0;animation:fill 3.2s cubic-bezier(.45,.05,.3,1) .9s forwards}
+.prog span{opacity:1;animation:off .3s 4.1s forwards}.prog em{opacity:0;animation:on .4s 4.2s forwards}
+.play{filter:saturate(.25) brightness(.7);animation:wake .5s 4.2s forwards}}
+@keyframes fill{to{width:100%}}@keyframes off{to{opacity:0}}@keyframes on{to{opacity:1}}@keyframes wake{to{filter:none}}@keyframes rise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+/* secciones */
+.sec{padding:clamp(70px,9vw,120px) 0}
+.sec--alt{background:var(--bg2);border-block:1px solid var(--line)}
+.sh{max-width:46em;margin-bottom:clamp(36px,5vw,56px)}
+.sh h2{font-size:clamp(1.9rem,3.7vw,2.9rem);line-height:1.12;margin-top:16px}
+.sh p{margin:16px 0 0;color:var(--mu);font-size:1.08rem;text-wrap:pretty}
+/* pasos */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:18px;counter-reset:s}
+@media(min-width:860px){.steps{grid-template-columns:repeat(3,1fr)}}
+.steps li{position:relative;padding:28px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,var(--glass2),var(--glass));counter-increment:s}
+.steps li::before{content:"0" counter(s);display:block;font:700 2.8rem/1 var(--disp);background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.steps h3{font:600 1.2rem/1.3 var(--txt);margin-top:14px}
+.steps p{margin:8px 0 0;color:var(--mu)}
+/* bento */
+.bento{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.card{position:relative;padding:26px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,var(--glass2),var(--glass));overflow:hidden;transition:transform .2s,border-color .2s}
+.card:hover{transform:translateY(-3px);border-color:rgba(155,92,255,.55)}
+.card::after{content:"";position:absolute;right:-40px;top:-40px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(155,92,255,.25),transparent 70%)}
+.ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(160deg,rgba(91,124,255,.3),rgba(155,92,255,.3));border:1px solid rgba(160,150,255,.35)}
+.ic svg{width:23px;height:23px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.card h3{font:600 1.1rem/1.3 var(--txt);margin-top:18px}
+.card p{margin:8px 0 0;color:var(--mu);font-size:.97rem}
+.card code,.qa code{font:.88em var(--mono);padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.08)}
+/* cliente */
+.cl{display:grid;gap:clamp(28px,4vw,56px)}
+@media(min-width:920px){.cl{grid-template-columns:1fr 1fr;align-items:start}}
+.panel{padding:28px;border:1px solid var(--line);border-radius:22px;background:var(--glass)}
+.panel+.panel{margin-top:16px}
+.panel h3{font:600 1.05rem/1.3 var(--txt);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.panel h3 span{font:500 .75rem var(--mono);color:var(--cy)}
+.tags{display:flex;flex-wrap:wrap;gap:8px;list-style:none;margin:16px 0 0;padding:0}
+.tags li{padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:.88rem;color:#d4d8ee}
+.tags--f li{background:linear-gradient(160deg,rgba(91,124,255,.22),rgba(155,92,255,.22));border-color:rgba(160,150,255,.4);color:#fff}
+.note{margin:16px 0 0;color:var(--mu);font-size:.93rem}
+.big{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.big div{padding:14px;border-radius:14px;background:var(--glass);border:1px solid var(--line);text-align:center}
+.big b{display:block;font:700 1.6rem/1.2 var(--disp)}.big small{font-size:.78rem;color:var(--mu)}
+/* servidor */
+.srv{display:grid;gap:24px;padding:clamp(26px,4vw,48px);border:1px solid rgba(160,150,255,.35);border-radius:26px;background:radial-gradient(60% 90% at 100% 0,rgba(130,64,238,.3),transparent 70%),var(--bg2)}
+@media(min-width:860px){.srv{grid-template-columns:1.2fr .8fr;align-items:center}}
+.srv h2{font-size:clamp(1.7rem,3vw,2.4rem);margin-top:14px}.srv p{color:var(--mu);margin:14px 0 0}
+.ip{padding:18px;border-radius:16px;background:rgba(0,0,0,.35);border:1px solid var(--line);font:600 1.1rem var(--mono);text-align:center}
+.ip small{display:block;font:.72rem var(--mono);letter-spacing:.14em;color:var(--cy);margin-bottom:6px}
+/* faq */
+.qa{border-top:1px solid var(--line)}.qa:last-of-type{border-bottom:1px solid var(--line)}
+.qa summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:18px;padding:20px 0;font:600 1.05rem/1.4 var(--txt)}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary::after{content:"+";font:400 1.6rem/1 var(--mono);color:var(--cy);transition:transform .2s}
+.qa[open] summary::after{transform:rotate(45deg)}
+.qa p{margin:0 0 22px;max-width:46em;color:var(--mu)}
+/* pie */
+.foot{padding:44px 0 56px;border-top:1px solid var(--line)}
+.foot__in{display:grid;gap:24px}@media(min-width:760px){.foot__in{grid-template-columns:1.3fr 1fr}}
+.foot p{margin:10px 0 0;color:var(--mu);font-size:.86rem;max-width:40em}
+.foot ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px 24px;align-content:start}
+@media(min-width:760px){.foot ul{justify-content:flex-end}}
+.foot ul a{color:var(--mu);text-decoration:none;font-size:.92rem}.foot ul a:hover{color:#fff}
+.rv{opacity:1}
+@media(prefers-reduced-motion:no-preference){.js .rv{opacity:0;transform:translateY(22px);transition:opacity .7s,transform .7s}.js .rv.in{opacity:1;transform:none}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Saltar al contenido</a>
+<header class="nav"><div class="wrap nav__in">
+  <a class="brand" href="#inicio" aria-label="Atenas Client, inicio"><img src="icon.png" alt="" width="36" height="36"><span>ATENAS</span></a>
+  <nav aria-label="Principal"><a href="#como">Cómo funciona</a><a href="#funciones">Funciones</a><a href="#cliente">Cliente 1.8.9</a><a href="#servidor">Servidor</a><a href="#preguntas">Preguntas</a></nav>
+  <a class="btn btn--sm" data-dl href="https://github.com/kaspercito/atenas-launcher/releases/latest/download/Atenas-Client-Instalador.exe">Descargar</a>
+</div></header>
+
+<main id="main">
+<section class="hero" id="inicio" aria-labelledby="h1"><div class="wrap hero__g">
+  <div>
+    <span class="tag">Launcher de Minecraft · gratis</span>
+    <h1 id="h1">Entra a jugar con los <span class="grad">mods ya al día.</span></h1>
+    <p class="lead">Atenas Client instala Java y el loader por ti, descarga solo los mods que cambiaron y te deja jugar con tus amigos. Además trae su propio cliente PvP para 1.8.9.</p>
+    <div class="cta">
+      <a class="btn" data-dl href="https://github.com/kaspercito/atenas-launcher/releases/latest/download/Atenas-Client-Instalador.exe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4.5 20h15"/></svg>Descargar para Windows</a>
+      <a class="btn btn--ghost" href="#como">¿Cómo funciona?</a>
+    </div>
+    <p class="dlmeta" id="dlmeta">Gratis · Windows 64 bits</p>
+    <p class="plat" id="plat" hidden>Este dispositivo no usa Windows. Por ahora solo hay instalador para Windows.</p>
+    <ul class="chips"><li>Mods automáticos</li><li>Amigos y chat</li><li>Cliente PvP 1.8.9</li><li>Cosméticos</li></ul>
+  </div>
+  <div class="mock" aria-hidden="true">
+    <div class="win">
+      <div class="win__bar">Atenas Client<i id="mockver">Launcher</i></div>
+      <div class="win__b">
+        <aside class="rail"><img src="icon.png" alt="" width="40" height="40">
+          <div class="ri on"><svg viewBox="0 0 24 24"><path d="M3 11l9-7.5L21 11M5.5 9.5V20h13V9.5"/></svg>Inicio</div>
+          <div class="ri"><svg viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.7v9.6L12 21.5l-8.5-4.7V7.2L12 2.5zM3.8 7.4L12 12l8.2-4.6M12 12v9.2"/></svg>Mods</div>
+          <div class="ri"><svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16.5 5.6a3.2 3.2 0 0 1 0 5.8M18 14.3c2 .6 3.5 2.4 3.5 5.2"/></svg>Amigos</div>
+        </aside>
+        <div class="stage"><div class="launch">
+          <div class="art">A</div>
+          <div class="info"><small>MINECRAFT 1.20.1 · FORGE</small><h3>Atenas SMP</h3><p>Modpack de supervivencia. Se actualiza solo antes de jugar.</p><span class="live">● Servidor en línea</span>
+            <div class="dock"><div class="prog"><span>Actualizando mods…</span><em>Todo listo</em></div><div class="bar"><i></i></div><div class="play">Jugar</div></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <p class="mock__cap">Vista ilustrativa del launcher</p>
+  </div>
+</div></section>
+
+<section class="sec sec--alt" id="como" aria-labelledby="h-como"><div class="wrap">
+  <div class="sh rv"><span class="tag">Empezar</span><h2 id="h-como">Tres pasos y estás dentro</h2><p>La primera vez descarga Java, el loader y los mods. Las siguientes veces, solo lo que cambió.</p></div>
+  <ol class="steps rv">
+    <li><h3>Descarga e instala</h3><p>Abre el instalador y espera un momento. Crea un acceso directo en el escritorio y abre el launcher al terminar.</p></li>
+    <li><h3>Elige cómo entrar</h3><p>Inicia sesión con Microsoft si tienes cuenta premium, o escribe solo un nombre para jugar sin conexión.</p></li>
+    <li><h3>Pulsa Jugar</h3><p>El launcher deja todo al día y arranca Minecraft. Si algo falla, el botón <b>Reparar</b> lo vuelve a dejar listo.</p></li>
+  </ol>
+</div></section>
+
+<section class="sec" id="funciones" aria-labelledby="h-fun"><div class="wrap">
+  <div class="sh rv"><span class="tag">Launcher</span><h2 id="h-fun">Lo que hace por ti antes de que abras el juego</h2><p>Tú eliges el modpack y pulsas Jugar. Instalar, actualizar y comprobar lo hace el launcher.</p></div>
+  <div class="bento rv">
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg></div><h3>Descarga solo lo que cambió</h3><p>Baja los mods nuevos, reemplaza los que cambiaron y quita los que ya no van. Cada archivo se verifica con SHA-256 antes de guardarse.</p></article>
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.7v9.6L12 21.5l-8.5-4.7V7.2L12 2.5zM3.8 7.4L12 12l8.2-4.6M12 12v9.2"/></svg></div><h3>Instala lo necesario</h3><p>Java 17 o 21 y el loader del modpack (Fabric, Quilt, Forge o NeoForge) se instalan solos. No buscas nada.</p></article>
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zM9 12l2 2 4-4"/></svg></div><h3>Tus ajustes son tuyos</h3><p>Las actualizaciones no pisan tu <code>options.txt</code> ni tu lista de servidores.</p></article>
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16.5 5.6a3.2 3.2 0 0 1 0 5.8M18 14.3c2 .6 3.5 2.4 3.5 5.2"/></svg></div><h3>Amigos y chat</h3><p>Solicitudes por nick, ver quién está en el launcher o jugando y en qué servidor, y chat privado. Dentro del cliente se abre con <code>Shift+Tab</code>.</p></article>
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 6 2.5 7 2.5 7h-17S6 14 6 8zM10 19a2 2 0 0 0 4 0"/></svg></div><h3>Te avisa de lo nuevo</h3><p>Revisa cada 5 minutos y al abrirse. Si hay mods nuevos lo ves en el launcher y en una notificación de Windows.</p></article>
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></div><h3>El servidor a la vista</h3><p>Jugadores conectados, ping y mensaje del día en vivo, con botón para copiar la IP.</p></article>
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></div><h3>Se actualiza solo</h3><p>El propio launcher se actualiza desde GitHub. No vuelves a descargar el instalador.</p></article>
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div><h3>Premium o sin conexión</h3><p>Entra con tu cuenta de Microsoft o solo con un nombre. Con premium, el launcher nunca ve tu contraseña.</p></article>
+    <article class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></div><h3>A tu gusto</h3><p>Temas de color, tiempo jugado, acceso a capturas, reparar la instalación y presencia en Discord.</p></article>
+  </div>
+</div></section>
+
+<section class="sec sec--alt" id="cliente" aria-labelledby="h-cl"><div class="wrap cl">
+  <div class="rv"><span class="tag">Cliente propio</span><h2 id="h-cl" style="font-size:clamp(1.9rem,3.7vw,2.9rem);line-height:1.12;margin-top:16px">Atenas Client 1.8.9, hecho para PvP</h2>
+    <p class="lead">Un cliente para Minecraft 1.8.9 con HUD, menú y cosméticos de Atenas. Se instala y se actualiza desde el mismo launcher, sin pasos extra.</p>
+    <div class="big"><div><b class="grad">25+</b><small>módulos</small></div><div><b class="grad">4</b><small>tipos de cosméticos</small></div><div><b class="grad">1.8.9</b><small>Forge</small></div></div>
+  </div>
+  <div class="rv">
+    <div class="panel"><h3>Módulos <span>HUD + utilidades</span></h3>
+      <ul class="tags"><li>Keystrokes</li><li>CPS</li><li>FPS</li><li>Armadura</li><li>Pociones</li><li>Zoom</li><li>Fullbright</li><li>Coordenadas</li><li>Combo</li><li>Reach</li><li>Perspectiva</li><li>Ping</li><li>Hora</li><li>Memoria</li><li>Marcador</li><li>Chat</li><li>Lista de jugadores</li><li>Dirección</li><li>Velocidad</li><li>Fuego bajo</li><li>Animaciones 1.7</li><li>Mira</li></ul></div>
+    <div class="panel"><h3>Cosméticos <span>personaliza tu look</span></h3>
+      <ul class="tags tags--f"><li>Capas</li><li>Alas</li><li>Sombreros</li><li>Mascotas</li></ul>
+      <p class="note">Los cosméticos privados necesitan una cuenta premium verificada. Con una cuenta sin conexión todo lo demás funciona igual.</p></div>
+  </div>
+</div></section>
+
+<section class="sec" id="servidor" aria-labelledby="h-srv"><div class="wrap">
+  <div class="srv rv">
+    <div><span class="tag">Servidor</span><h2 id="h-srv">Atenas SMP, supervivencia con propósito</h2><p>Descarga el launcher, elige Atenas SMP y entra directo: los mods ya vienen al día. Mira el estado en vivo y la IP en la página del servidor.</p>
+      <div class="cta"><a class="btn" href="servidor.html">Ver el servidor</a></div></div>
+    <div class="ip"><small>ESTADO EN VIVO</small>Consúltalo en servidor.html</div>
+  </div>
+</div></section>
+
+<section class="sec sec--alt" id="preguntas" aria-labelledby="h-q"><div class="wrap" style="max-width:860px">
+  <div class="sh rv"><span class="tag">FAQ</span><h2 id="h-q">Preguntas frecuentes</h2></div>
+  <div class="rv">
+    <details class="qa"><summary>¿Funciona en Mac o Linux?</summary><p>Por ahora solo hay instalador para Windows de 64 bits.</p></details>
+    <details class="qa"><summary>Windows muestra un aviso al abrir el instalador</summary><p>Es posible la primera vez, porque el instalador no tiene un certificado de firma de pago. Pulsa «Más información» y luego «Ejecutar de todas formas». El código y las versiones están en GitHub para que las revises.</p></details>
+    <details class="qa"><summary>¿Necesito una cuenta premium?</summary><p>No. Puedes entrar con Microsoft o solo con un nombre. Con premium verificada puedes usar además los cosméticos privados.</p></details>
+    <details class="qa"><summary>¿Qué diferencia hay entre el instalador y el instalador completo?</summary><p>El instalador (<code>Atenas-Client-Instalador.exe</code>) es el camino fácil: descarga la última versión, la ejecuta y abre el launcher. El instalador completo (<code>Atenas-Client-Setup</code>) trae todo en un solo archivo. <a class="grad" data-setup href="https://github.com/kaspercito/atenas-launcher/releases/latest">Descargar el completo</a>.</p></details>
+    <details class="qa"><summary>¿Perderé mis mundos si desinstalo?</summary><p>Las actualizaciones nunca borran nada. Si desinstalas a mano, el desinstalador te pregunta si quieres borrar también modpacks, mundos y ajustes.</p></details>
+  </div>
+</div></section>
+</main>
+
+<footer class="foot"><div class="wrap foot__in">
+  <div><a class="brand" href="#inicio"><img src="icon.png" alt="" width="36" height="36"><span>ATENAS</span></a>
+    <p>Atenas Client es un proyecto independiente. No está afiliado a Mojang ni a Microsoft. Minecraft es una marca de Mojang Studios.</p><p>© 2026 kaspercito · Licencia MIT</p></div>
+  <ul><li><a href="https://github.com/kaspercito/atenas-launcher">GitHub</a></li><li><a href="https://github.com/kaspercito/atenas-launcher/releases">Versiones</a></li><li><a href="servidor.html">Servidor Atenas SMP</a></li></ul>
+</div></footer>
+
+<script>
+(function(){
+  var doc=document.documentElement;doc.className+=' js';
+  var $=function(id){return document.getElementById(id)};
+  // Aparecer al hacer scroll
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
+    document.querySelectorAll('.rv').forEach(function(el){io.observe(el)});
+  }else{document.querySelectorAll('.rv').forEach(function(el){el.classList.add('in')})}
+  try{var p=(navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||'';if(p&&!/win/i.test(p))$('plat').hidden=false}catch(e){}
+  // Última versión desde GitHub
+  var API='https://api.github.com/repos/kaspercito/atenas-launcher/releases/latest';
+  function render(rel){
+    var ver=String(rel.tag_name||'').replace(/^v/i,'');if(!ver)return;
+    $('mockver').textContent='v'+ver;
+    var as=rel.assets||[];
+    var main=as.filter(function(a){return a.name==='Atenas-Client-Instalador.exe'})[0]||as.filter(function(a){return /^Atenas-Client-Setup-.+\.exe$/.test(a.name)})[0];
+    var mb=main&&main.size?' · '+Math.max(1,Math.round(main.size/1048576))+' MB':'';
+    $('dlmeta').textContent='Versión '+ver+mb+' · Gratis · Windows 64 bits';
+    var s=as.filter(function(a){return /^Atenas-Client-Setup-.+\.exe$/.test(a.name)})[0];
+    if(s)document.querySelectorAll('[data-setup]').forEach(function(a){a.href=s.browser_download_url});
+  }
+  try{var c=JSON.parse(sessionStorage.getItem('atenas-release')||'null');if(c&&Date.now()-c.t<600000){render(c.d);return}}catch(e){}
+  if(!window.fetch)return;
+  fetch(API,{headers:{Accept:'application/vnd.github+json'}}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){try{sessionStorage.setItem('atenas-release',JSON.stringify({t:Date.now(),d:d}))}catch(e){}render(d)}).catch(function(){});
+})();
+</script>
+</body>
+</html>
